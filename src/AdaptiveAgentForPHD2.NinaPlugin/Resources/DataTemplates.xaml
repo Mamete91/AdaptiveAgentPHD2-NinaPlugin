@@ -1,0 +1,27 @@
+<ResourceDictionary
+    x:Class="AdaptiveAgentForPHD2.NinaPlugin.Resources.DataTemplates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dash="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Dashboard"
+    xmlns:settings="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Settings">
+
+    <!--
+        La chiave DEVE seguire il pattern: FullNamespace.ClassName_Dockable
+        NINA usa questa convenzione per collegare il ViewModel al pannello dockable.
+    -->
+    <DataTemplate x:Key="AdaptiveAgentForPHD2.NinaPlugin.Dashboard.AdaptiveAgentDashboardVM_Dockable">
+        <dash:AdaptiveAgentDashboardView />
+    </DataTemplate>
+
+    <!--
+        Pagina opzioni del plugin (v1.1).
+        Chiave = "<AssemblyTitle>_Options" (NINA.ViewModel.Plugins.PluginOptionsDataTemplateSelector
+        risolve val.Name + DataTemplatePostfix.Options, dove Name = AssemblyTitle).
+        Il trattino e' un EM DASH (U+2014), identico ad AssemblyInfo.cs: deve combaciare esattamente.
+        Il DataContext esterno e' l'istanza del plugin (IPluginManifest); ne usiamo la property Settings.
+    -->
+    <DataTemplate x:Key="Adaptive Agent for PHD2 — Dashboard_Options">
+        <settings:PluginSettingsView DataContext="{Binding Settings}" />
+    </DataTemplate>
+
+</ResourceDictionary>

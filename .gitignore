@@ -1,0 +1,43 @@
+## .NET / C# standard .gitignore
+
+# Build output
+bin/
+obj/
+out/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.vcxproj.filters
+*.vcxproj.user
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Build logs
+*.log
+msbuild.binlog
+
+# Test results
+TestResults/
+coverage/
+
+# Local Claude Code settings
+.claude/settings.local.json

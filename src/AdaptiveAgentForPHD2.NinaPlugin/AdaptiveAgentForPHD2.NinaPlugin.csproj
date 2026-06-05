@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows 10 RS5 (17763) e' il minimo richiesto da WebView2 -->
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <Nullable>disable</Nullable>
+    <RootNamespace>AdaptiveAgentForPHD2.NinaPlugin</RootNamespace>
+    <AssemblyName>AdaptiveAgentForPHD2.NinaPlugin</AssemblyName>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Copyright>Copyright (c) 2026 Alessandro Curci</Copyright>
+    <!-- NU1701: transitivi NINA legati a .NET Framework (irrilevanti a runtime) -->
+    <!-- CA1416: WebView2 e' Windows-only — falso positivo per questo plugin WPF -->
+    <NoWarn>NU1701;CA1416</NoWarn>
+    <Authors>Alessandro Curci</Authors>
+    <Version>1.2.3.0</Version>
+    <FileVersion>1.2.3.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      NINA SDK — compile-only reference.
+      NINA ships all these DLLs in its own directory at runtime;
+      we must NOT copy them into the plugin folder.
+    -->
+    <PackageReference Include="NINA.Plugin" Version="3.2.0.9001">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+
+    <!--
+      WebView2 — compile-only reference.
+      Pinned to the version shipped by NINA 3.2 stable (v1.0.3296.44).
+      WebView2 usa versioning stretto (AssemblyVersion = versione completa):
+      compilare contro una versione piu' recente di quella shipped da NINA
+      causa il fallimento del bind a runtime ("Failed to load plugin").
+      NINA 3.2 stable ships Microsoft.Web.WebView2.*.dll v1.0.3296.44 nella
+      propria directory; e' forward-compatible con 3.3 nightly (v1.0.3650.58),
+      quindi questa singola build copre entrambi i target. ExcludeAssets=runtime
+      resta: NINA fornisce le DLL a runtime, non le duplichiamo.
+    -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3296.44">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+
+    <!--
+      CommunityToolkit.Mvvm — compile-only reference per RelayCommand/AsyncRelayCommand.
+      NINA.Core ne dipende e NINA ships CommunityToolkit.Mvvm.dll (v8.4.0.1) a runtime,
+      quindi escludiamo i runtime asset come per le altre dipendenze NINA.
+    -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

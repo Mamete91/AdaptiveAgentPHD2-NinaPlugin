@@ -1,0 +1,90 @@
+<UserControl
+    x:Class="AdaptiveAgentForPHD2.NinaPlugin.Dashboard.AdaptiveAgentDashboardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+    Background="{DynamicResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- v1.1: badge stato + pulsante Avvia -->
+            <RowDefinition Height="Auto" />   <!-- header v1.0 -->
+            <RowDefinition Height="*" />      <!-- WebView2 + fallback v1.0 -->
+            <RowDefinition Height="Auto" />   <!-- footer -->
+        </Grid.RowDefinitions>
+
+        <!-- STATUS BAR (v1.1): badge a sinistra, pulsante Avvia a destra -->
+        <DockPanel Grid.Row="0" Margin="8,6,8,2">
+            <Button DockPanel.Dock="Right"
+                    Content="{Binding LaunchButtonText}"
+                    IsEnabled="{Binding LaunchButtonEnabled}"
+                    ToolTip="{Binding LaunchButtonTooltip}"
+                    Command="{Binding LaunchAgentCommand}"
+                    Padding="10,4"
+                    Margin="6,0,0,0" />
+            <Border CornerRadius="3"
+                    Padding="8,3"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    Background="{Binding StatusBadgeBackground}">
+                <TextBlock Text="{Binding StatusBadgeText}"
+                           Foreground="White"
+                           FontWeight="SemiBold" />
+            </Border>
+        </DockPanel>
+
+        <!-- HEADER (v1.0) -->
+        <DockPanel Grid.Row="1" Margin="8,2,8,6">
+            <Button DockPanel.Dock="Right"
+                    Content="Reload"
+                    Padding="10,3"
+                    Click="OnReloadClick" />
+            <StackPanel>
+                <TextBlock Text="Adaptive Agent for PHD2 — Dashboard"
+                           FontWeight="Bold"
+                           FontSize="13" />
+                <TextBlock Text="{Binding DashboardUrl}"
+                           FontSize="10"
+                           Opacity="0.7" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- WEB VIEW (v1.0) -->
+        <wv2:WebView2 Grid.Row="2"
+                      x:Name="WebViewControl"
+                      DefaultBackgroundColor="Transparent" />
+
+        <!-- FALLBACK (visibile solo quando la navigazione fallisce) -->
+        <Border Grid.Row="2"
+                x:Name="FallbackPanel"
+                Visibility="Collapsed"
+                Background="{DynamicResource BackgroundBrush}">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        MaxWidth="420"
+                        Margin="20">
+                <TextBlock Text="Agente non raggiungibile"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8" />
+                <TextBlock TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           Text="La dashboard dell'Adaptive Agent for PHD2 non risponde su localhost:8080.&#10;Usa il pulsante &quot;Avvia Adaptive Agent&quot; qui sopra (dopo aver impostato il percorso nelle settings), attendi qualche secondo, poi premi Riprova." />
+                <Button Content="Riprova"
+                        Padding="20,6"
+                        Margin="0,16,0,0"
+                        HorizontalAlignment="Center"
+                        Click="OnReloadClick" />
+            </StackPanel>
+        </Border>
+
+        <!-- FOOTER -->
+        <TextBlock Grid.Row="3"
+                   Margin="8,4"
+                   FontSize="10"
+                   Opacity="0.6"
+                   HorizontalAlignment="Center"
+                   Text="Adaptive Agent for PHD2 — Dashboard v1.1  |  by Alessandro Curci  |  Copyright (c) 2026" />
+    </Grid>
+</UserControl>
