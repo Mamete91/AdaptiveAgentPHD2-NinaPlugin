@@ -13,11 +13,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
     public sealed record AgentHealth(bool IsOnline, string? Version);
 
     /// <summary>
-    /// Snapshot minimale di GET /status per il Safety Monitor v1.2.
-    /// Leggiamo solo controller.guiding_state (l'unico campo rilevante per la logica unsafe).
+    /// Snapshot minimale di GET /status per il Safety Monitor.
+    /// v1.2: controller.guiding_state (logica STAR_LOST). v1.4 (N6): nina.transparency
+    /// (state discreto CLEAR/HAZE/CLOUD + fresh) per la safety-su-nubi.
     /// IsValid = false quando il payload e' null/incompleto/malformato => no-op nel decision engine.
+    /// I campi trasparenza sono TOLLERANTI: assenti (Agente vecchio / telemetria off) =>
+    /// TransparencyState=null, TransparencyFresh=false => N6 FAIL-SAFE (nubi neutre).
     /// </summary>
-    public sealed record AgentStatusSnapshot(string? GuidingState, bool IsValid);
+    public sealed record AgentStatusSnapshot(
+        string? GuidingState,
+        bool IsValid,
+        string? TransparencyState = null,
+        bool TransparencyFresh = false,
+        double? TransparencyIndex = null);
 
     /// <summary>
     /// Poller leggero che interroga GET &lt;DashboardUrl&gt;/about a intervalli regolari.
@@ -152,12 +160,38 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
 
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
+
+                // §49 N6 — trasparenza (nina.transparency): state discreto + fresh + index.
+                // Tollerante e version-agnostic (JSON puro): campi assenti => neutri (fail-safe).
+                string? transpState = null;
+                bool transpFresh = false;
+                double? transpIndex = null;
+                if (doc.RootElement.TryGetProperty("nina", out var nina)
+                    && nina.ValueKind == JsonValueKind.Object
+                    && nina.TryGetProperty("transparency", out var transp)
+                    && transp.ValueKind == JsonValueKind.Object)
+                {
+                    if (transp.TryGetProperty("state", out var st) && st.ValueKind == JsonValueKind.String)
+                    {
+                        transpState = st.GetString();
+                    }
+                    if (transp.TryGetProperty("fresh", out var fr)
+                        && (fr.ValueKind == JsonValueKind.True || fr.ValueKind == JsonValueKind.False))
+                    {
+                        transpFresh = fr.GetBoolean();
+                    }
+                    if (transp.TryGetProperty("index", out var ix) && ix.ValueKind == JsonValueKind.Number)
+                    {
+                        transpIndex = ix.GetDouble();
+                    }
+                }
+
                 if (doc.RootElement.TryGetProperty("controller", out var controller)
                     && controller.ValueKind == JsonValueKind.Object
                     && controller.TryGetProperty("guiding_state", out var gs)
                     && gs.ValueKind == JsonValueKind.String)
                 {
-                    return new AgentStatusSnapshot(gs.GetString(), true);
+                    return new AgentStatusSnapshot(gs.GetString(), true, transpState, transpFresh, transpIndex);
                 }
                 // Payload presente ma senza il campo atteso => no-op per il decision engine.
                 return new AgentStatusSnapshot(null, false);

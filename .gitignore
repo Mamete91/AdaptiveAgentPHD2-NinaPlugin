@@ -41,3 +41,6 @@ coverage/
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Prompt di sviluppo interno (non parte del plugin pubblico)
+PROMPT_GIT_PLUGIN_PUBBLICAZIONE_BSD3.md

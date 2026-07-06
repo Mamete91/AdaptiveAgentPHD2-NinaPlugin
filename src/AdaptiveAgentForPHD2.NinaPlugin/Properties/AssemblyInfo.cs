@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.2.3.0")]
-[assembly: AssemblyFileVersion("1.2.3.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -20,11 +20,11 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyMetadata("Name",                  "Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyMetadata("Author",                "Alessandro Curci")]
 [assembly: AssemblyMetadata("Homepage",              "https://t.me/+eewRNpvElSs5OWY8")]
-[assembly: AssemblyMetadata("Repository",            "")]
-[assembly: AssemblyMetadata("License",               "All rights reserved")]
-[assembly: AssemblyMetadata("LicenseURL",            "")]
+[assembly: AssemblyMetadata("Repository",            "https://github.com/Mamete91/AdaptiveAgentPHD2-NinaPlugin")]
+[assembly: AssemblyMetadata("License",               "BSD-3-Clause")]
+[assembly: AssemblyMetadata("LicenseURL",            "https://raw.githubusercontent.com/Mamete91/AdaptiveAgentPHD2-NinaPlugin/master/LICENSE")]
 [assembly: AssemblyMetadata("Tags",                  "PHD2,Guiding,Dashboard,Adaptive Agent")]
-[assembly: AssemblyMetadata("MinimumApplicationVersion", "3.0.0.0")]
+[assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
 [assembly: AssemblyMetadata("FeaturedImageURL",      "")]
 [assembly: AssemblyMetadata("ChangelogURL",          "")]
 [assembly: AssemblyMetadata("LongDescription",
@@ -33,5 +33,7 @@ using System.Runtime.InteropServices;
     "Mostra la dashboard tramite WebView2 e, da v1.1, aggiunge sopra il pannello un " +
     "badge di stato dell'Agente (online/offline) e un pulsante 'Avvia Adaptive Agent' " +
     "che lancia il file Avvia.bat configurato nelle impostazioni del plugin. " +
-    "Non interagisce con PHD2 ne' con il Sequencer di NINA: e' una pura rifinitura UX. " +
+    "Da v1.3 inoltra inoltre all'Agente le metriche per-posa di NINA (HFR, FWHM, " +
+    "conteggio stelle, eccentricita', statistiche immagine) a ogni light salvata: " +
+    "inoltro opzionale e graceful, se l'Agente e' offline NINA non viene mai disturbata. " +
     "L'Agente puo' comunque essere avviato anche manualmente tramite Avvia.bat.")]

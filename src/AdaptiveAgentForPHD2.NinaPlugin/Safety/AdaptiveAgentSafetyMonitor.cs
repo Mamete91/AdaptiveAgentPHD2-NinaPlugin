@@ -45,9 +45,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         public string DisplayName => Name;
         public string Description =>
             "Riflette lo stato della guida dell'Adaptive Agent for PHD2. Dichiara unsafe quando STAR_LOST " +
-            "persiste oltre il timeout configurato (default 5 minuti).";
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.2.0.0 — Safety Monitor virtuale";
-        public string DriverVersion => "1.2.0.0";
+            "persiste oltre il timeout configurato (default 5 minuti) oppure (v1.4, N6) quando la trasparenza " +
+            "NINA resta CLOUD oltre l'isteresi configurata. Fail-safe: senza telemetria fresca resta solo STAR_LOST.";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.4.0.0 — Safety Monitor virtuale";
+        public string DriverVersion => "1.4.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -146,10 +147,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             {
                 case SafetyDecision.BecameUnsafe:
                     IsSafe = false;
-                    var secs = _settings.StarLostConsolidationSeconds;
-                    var dur = secs >= 60 ? $"{secs / 60} minuti" : $"{secs}s";
-                    Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST consolidato da {dur}");
-                    Notification.ShowWarning($"Adaptive Agent: guida persa da {dur} — Safety Monitor unsafe");
+                    if (_engine.LastCause == SafetyCause.Cloud)
+                    {
+                        // §49 N6 — nubi: la trasparenza NINA è rimasta CLOUD oltre l'isteresi.
+                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — nubi (trasparenza CLOUD per {_settings.CloudUnsafePolls} poll)");
+                        Notification.ShowWarning("Adaptive Agent: nubi persistenti (trasparenza NINA) — Safety Monitor unsafe");
+                    }
+                    else
+                    {
+                        var secs = _settings.StarLostConsolidationSeconds;
+                        var dur = secs >= 60 ? $"{secs / 60} minuti" : $"{secs}s";
+                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST consolidato da {dur}");
+                        Notification.ShowWarning($"Adaptive Agent: guida persa da {dur} — Safety Monitor unsafe");
+                    }
                     break;
 
                 case SafetyDecision.BecameSafe:

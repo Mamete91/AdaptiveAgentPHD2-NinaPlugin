@@ -9,8 +9,11 @@ dell'**Adaptive Agent for PHD2**, esposta su `http://localhost:8080`.
 
 Apre, all'interno di NINA, la dashboard dell'Agente tramite un controllo WebView2.
 Da **v1.1** aggiunge sopra il pannello un **badge di stato** dell'Agente e un pulsante
-**Avvia Adaptive Agent**. Nient'altro: nessuna logica adattiva, nessun contatto con
-PHD2, nessuna interferenza col Sequencer. Tutta la logica vive nel processo Python separato.
+**Avvia Adaptive Agent**; da **v1.3** inoltra all'Agente le **metriche per-posa** di NINA
+(HFR, conteggio stelle, statistiche immagine) a ogni light salvata; da **v1.4** il **Safety
+Monitor** dichiara unsafe anche sulle **nubi** (trasparenza CLOUD persistente), non solo su
+STAR_LOST. Nessuna logica adattiva nel plugin: la trasparenza è riconosciuta dall'Agente
+(processo Python separato); il plugin è ponte di telemetria/UX + segnale di sicurezza.
 
 ---
 
@@ -35,7 +38,7 @@ In NINA: **Options → Plugins → Adaptive Agent for PHD2 — Dashboard**. Impo
 
 | Impostazione | Default | Note |
 |--------------|---------|------|
-| **Percorso Avvia.bat** | *(vuoto)* | Es. `...\PHD2_Assist_PATCHED\Pacchetto_Distribuzione\Avvia.bat`. Usa "Sfoglia...". |
+| **Percorso Avvia.bat** | *(vuoto)* | Es. `...\AdaptiveAgentPHD2\Pacchetto_Distribuzione\Avvia.bat`. Usa "Sfoglia...". |
 | **Intervallo controllo stato (s)** | `15` | Range 5–120. Più basso = badge più reattivo. |
 | **URL dashboard** | `http://localhost:8080` | Cambialo solo se hai modificato la porta dell'Agente. |
 
@@ -44,11 +47,59 @@ Le impostazioni si salvano automaticamente in
 
 ---
 
+## v1.3 — Inoltro telemetria per-posa all'Agente (§42)
+
+A ogni light frame salvata, il plugin si iscrive a `IImageSaveMediator.ImageSaved` e
+inoltra all'Agente le metriche per-posa di NINA via `POST <URL dashboard>/nina/telemetry`
+(contratto `schema_version=1`): **HFR**, **HFR std**, **conteggio stelle**, **statistiche
+immagine** (mean/median/stdev ADU), **durata posa** e **filtro**.
+
+- **Opzionale e graceful**: se l'Agente è offline (o il toggle è off) non succede nulla —
+  nessuna eccezione, nessun popup, NINA prosegue la sequenza. L'inoltro è *fire-and-forget*
+  con timeout breve (3 s) e nessun retry (la posa successiva riprova da sé).
+- **Toggle**: *«Inoltra le metriche per-posa di NINA all'Agente»* nelle settings del plugin
+  (default **attivo**). Disattivandolo, il plugin resta in ascolto ma non invia alcun dato.
+- **Requisito lato Agente**: l'endpoint `POST /nina/telemetry` esiste dall'Agente **§41**
+  (v2.6). L'Agente espone i dati ricevuti in `GET /status` sotto il blocco `nina`
+  (`connected`, `metrics`…); dopo ~3 min senza nuove pose torna `connected:false`
+  conservando l'ultimo valore. Nessun consumatore agisce ancora sui dati: è il "tubo" su
+  cui poggeranno le feature successive (context-gating, indice di trasparenza, ecc.).
+- **Nota SDK**: **FWHM** (arcsec) ed **eccentricità** non sono esposti da
+  `IStarDetectionAnalysis` in NINA **3.2.0.9001** → vengono **omessi** finché la NINA
+  installata non li espone (build successive); il contratto è già predisposto a riceverli.
+
+---
+
+## v1.4 — Safety su nubi (N6): il Safety Monitor ferma la ripresa sulle nubi (§49)
+
+Il **Safety Monitor** virtuale ora dichiara **unsafe** — accanto alla condizione STAR_LOST
+esistente — anche quando la **trasparenza del cielo** (riconosciuta dall'Agente dai light
+NINA: conteggio stelle + fondo) resta **CLOUD** per alcuni poll consecutivi. Così NINA può
+mettere in pausa la ripresa **prima** di perdere la stella di guida (niente light sprecati
+sotto le nuvole).
+
+- **Isteresi asimmetrica** (tarabile nelle settings): **lento** verso unsafe (`CLOUD → unsafe`
+  dopo N poll, default 8), **più rapido** verso safe (`CLEAR/HAZE → safe` dopo M poll, default
+  4). Una velatura breve (HAZE transitorio) NON manda unsafe.
+- **Fail-safe:** se l'Agente è spento o la telemetria è stantia, la condizione nubi è **neutra**
+  (nessun unsafe spurio) — resta attiva solo la logica STAR_LOST come backstop.
+- **Toggle** "Safety su nubi attiva" (default ON) + soglie N/M nelle settings del plugin.
+- **Confine invariato:** il plugin **segnala** unsafe/safe (con la causa: STAR_LOST o CLOUD);
+  **NINA decide** cosa farne (pausa/park) secondo la policy safety configurata.
+- Version-agnostic: legge `/status` come JSON puro → gira su NINA **3.2 e 3.3**.
+
+> **⚠️ Nota utente (importante):** perché la protezione sia **continua** durante la ripresa,
+> in NINA la sequenza deve avere un blocco **"Wait Until Safe" DENTRO il loop** di
+> acquisizione (non solo all'inizio). Altrimenti il Safety Monitor viene consultato una volta
+> sola e le nubi che arrivano a metà sequenza non mettono in pausa.
+
+---
+
 ## Prerequisiti
 
 | Requisito | Note |
 |-----------|------|
-| **NINA 3.3+** | Versione installata sul tuo PC |
+| **NINA 3.2+** | Compatibile con NINA **3.2 e successive** (inclusa la 3.3). Versione installata sul tuo PC |
 | **Adaptive Agent for PHD2** | Il pacchetto Python deve essere in esecuzione (`Avvia.bat`) |
 | **Microsoft Edge / WebView2 Runtime** | Pre-installato su Windows 11 e Windows 10 aggiornato. Se il pannello appare bianco, installa manualmente il runtime dal sito Microsoft: https://developer.microsoft.com/en-us/microsoft-edge/webview2/ |
 
@@ -107,7 +158,9 @@ di fallback con il pulsante **Riprova**.
   stessa macchina di NINA.
 - **Nessuna auto-pause**: il plugin non mette in pausa la sequenza NINA né reagisce a
   `/status`. È una pura rifinitura UX (eventuale auto-pause valutabile in futuro).
-- **Testato su NINA 3.3**: versioni precedenti non supportate esplicitamente.
+- **NINA 3.2+**: il plugin è compatibile con NINA **3.2 e successive** (inclusa la 3.3);
+  compila sul SDK NINA 3.2.0.9001 e legge `/status` come JSON puro. Versioni precedenti
+  alla 3.2 non supportate.
 
 > Risolti in v1.1 rispetto a v1.0: URL ora configurabile nelle settings; health-check
 > proattivo ogni 5–120 s con badge di stato.
@@ -122,4 +175,6 @@ Gruppo Telegram della community: https://t.me/+eewRNpvElSs5OWY8
 
 ## Licenza
 
-Copyright (c) 2026 Alessandro Curci — All rights reserved.
+Distribuito con licenza **BSD-3-Clause** — vedi il file [`LICENSE`](LICENSE).
+
+Copyright (c) 2026 Alessandro Curci.

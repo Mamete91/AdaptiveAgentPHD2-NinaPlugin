@@ -59,6 +59,19 @@
                  Padding="4,3"
                  Text="{Binding DashboardUrl, UpdateSourceTrigger=LostFocus}" />
 
+        <!-- Inoltro telemetria per-posa all'Agente (v1.3, §42) -->
+        <TextBlock Text="Inoltra le metriche per-posa di NINA all'Agente"
+                   FontWeight="SemiBold"
+                   Margin="0,14,0,2" />
+        <TextBlock Text="A ogni posa salvata, invia all'Agente HFR, FWHM, conteggio stelle, eccentricità e statistiche immagine (HTTP POST). Opzionale: se l'Agente è offline non succede nulla e NINA non viene mai disturbata. Disattiva per non inviare alcun dato."
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,4" />
+        <CheckBox Content="Inoltro telemetria attivo"
+                  HorizontalAlignment="Left"
+                  IsChecked="{Binding ForwardTelemetryToAgent}" />
+
         <!-- Safety Monitor: consolidamento STAR_LOST (v1.2) -->
         <TextBlock Text="Safety Monitor — consolidamento STAR_LOST (secondi)"
                    FontWeight="SemiBold"
@@ -72,6 +85,27 @@
                  HorizontalAlignment="Left"
                  Padding="4,3"
                  Text="{Binding StarLostConsolidationSeconds, UpdateSourceTrigger=LostFocus}" />
+
+        <!-- Safety su nubi (NINA), v1.4 §49 N6 -->
+        <TextBlock Text="Safety Monitor — Safety su nubi (trasparenza NINA)"
+                   FontWeight="SemiBold"
+                   Margin="0,14,0,2" />
+        <TextBlock Text="Se attivo, il Safety Monitor dichiara unsafe (accanto a STAR_LOST) quando la trasparenza NINA resta CLOUD per N poll consecutivi — così NINA mette in pausa la ripresa prima di perdere la stella di guida. Fail-safe: senza telemetria fresca la condizione nubi è neutra (resta solo STAR_LOST). Richiede l'inoltro telemetria attivo e l'Agente in esecuzione."
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,4" />
+        <CheckBox Content="Safety su nubi attiva"
+                  HorizontalAlignment="Left"
+                  IsChecked="{Binding CloudSafetyEnabled}" />
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Text="CLOUD → unsafe (poll):" VerticalAlignment="Center" Opacity="0.8" />
+          <TextBox Width="60" Margin="6,0,14,0" Padding="4,3"
+                   Text="{Binding CloudUnsafePolls, UpdateSourceTrigger=LostFocus}" />
+          <TextBlock Text="CLEAR/HAZE → safe (poll):" VerticalAlignment="Center" Opacity="0.8" />
+          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
+                   Text="{Binding ClearSafePolls, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
 
         <TextBlock Text="Le impostazioni vengono salvate automaticamente."
                    FontSize="10"

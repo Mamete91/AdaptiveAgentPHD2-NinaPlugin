@@ -21,6 +21,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         public const int DefaultStarLostConsolidationSeconds = 300;
         public const int MinStarLostConsolidationSeconds = 30;
         public const int MaxStarLostConsolidationSeconds = 1800;
+        public const bool DefaultForwardTelemetryToAgent = true;   // §42: born-operative
+        // §49 N6 — safety su nubi (trasparenza NINA). Isteresi asimmetrica: lento verso
+        // UNSAFE (N poll di CLOUD), più rapido verso SAFE (M poll di CLEAR/HAZE).
+        public const bool DefaultCloudSafetyEnabled = true;
+        public const int DefaultCloudUnsafePolls = 8;   // poll consecutivi CLOUD -> UNSAFE
+        public const int MinCloudUnsafePolls = 2;
+        public const int MaxCloudUnsafePolls = 120;
+        public const int DefaultClearSafePolls = 4;     // poll consecutivi CLEAR/HAZE -> SAFE
+        public const int MinClearSafePolls = 1;
+        public const int MaxClearSafePolls = 60;
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -30,6 +40,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private int _healthCheckIntervalSeconds = DefaultIntervalSeconds;
         private string _dashboardUrl = DefaultDashboardUrl;
         private int _starLostConsolidationSeconds = DefaultStarLostConsolidationSeconds;
+        private bool _forwardTelemetryToAgent = DefaultForwardTelemetryToAgent;
+        private bool _cloudSafetyEnabled = DefaultCloudSafetyEnabled;
+        private int _cloudUnsafePolls = DefaultCloudUnsafePolls;
+        private int _clearSafePolls = DefaultClearSafePolls;
         private bool _suppressSave;
 
         /// <summary>Sollevato quando l'intervallo di polling cambia, così il poller riarma il timer.</summary>
@@ -93,6 +107,69 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
         }
 
+        /// <summary>
+        /// §42 — inoltro delle metriche per-posa di NINA all'Agente (POST /nina/telemetry).
+        /// Default true (born-operative). false = kill-switch lato plugin: il forwarder resta
+        /// iscritto a ImageSaved ma NON POSTa. Opzionale/graceful: non influisce su NINA.
+        /// </summary>
+        public bool ForwardTelemetryToAgent
+        {
+            get => _forwardTelemetryToAgent;
+            set
+            {
+                if (_forwardTelemetryToAgent == value) { return; }
+                _forwardTelemetryToAgent = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>
+        /// §49 N6 — safety su nubi: quando true, il Safety Monitor dichiara UNSAFE anche se
+        /// la trasparenza NINA resta CLOUD per CloudUnsafePolls poll (accanto a STAR_LOST).
+        /// Default true. false = kill-switch (solo STAR_LOST, comportamento pre-N6).
+        /// FAIL-SAFE: senza telemetria fresca la condizione nubi è comunque neutra.
+        /// </summary>
+        public bool CloudSafetyEnabled
+        {
+            get => _cloudSafetyEnabled;
+            set
+            {
+                if (_cloudSafetyEnabled == value) { return; }
+                _cloudSafetyEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Poll consecutivi con trasparenza CLOUD prima di UNSAFE (isteresi lenta).</summary>
+        public int CloudUnsafePolls
+        {
+            get => _cloudUnsafePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinCloudUnsafePolls, MaxCloudUnsafePolls);
+                if (_cloudUnsafePolls == clamped) { return; }
+                _cloudUnsafePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Poll consecutivi con trasparenza CLEAR/HAZE prima di tornare SAFE (recovery più rapido).</summary>
+        public int ClearSafePolls
+        {
+            get => _clearSafePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinClearSafePolls, MaxClearSafePolls);
+                if (_clearSafePolls == clamped) { return; }
+                _clearSafePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
         public static PluginSettings Load()
         {
             var settings = new PluginSettings();
@@ -112,6 +189,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         // Utenti che aggiornano da v1.1 non hanno la chiave => 0 => applica il default.
                         settings.StarLostConsolidationSeconds =
                             dto.StarLostConsolidationSeconds == 0 ? DefaultStarLostConsolidationSeconds : dto.StarLostConsolidationSeconds;
+                        // §42 — bool? nel DTO: chiave assente (upgrade da <v1.3) => null => default true.
+                        // (un bool non-nullable deserializzerebbe a false, disabilitando il forwarder.)
+                        settings.ForwardTelemetryToAgent =
+                            dto.ForwardTelemetryToAgent ?? DefaultForwardTelemetryToAgent;
+                        // §49 — bool?/int? nel DTO: chiave assente (upgrade <v1.4) => default.
+                        settings.CloudSafetyEnabled =
+                            dto.CloudSafetyEnabled ?? DefaultCloudSafetyEnabled;
+                        settings.CloudUnsafePolls =
+                            (dto.CloudUnsafePolls == null || dto.CloudUnsafePolls == 0)
+                                ? DefaultCloudUnsafePolls : dto.CloudUnsafePolls.Value;
+                        settings.ClearSafePolls =
+                            (dto.ClearSafePolls == null || dto.ClearSafePolls == 0)
+                                ? DefaultClearSafePolls : dto.ClearSafePolls.Value;
                         settings._suppressSave = false;
                     }
                 }
@@ -135,6 +225,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     HealthCheckIntervalSeconds = _healthCheckIntervalSeconds,
                     DashboardUrl = _dashboardUrl,
                     StarLostConsolidationSeconds = _starLostConsolidationSeconds,
+                    ForwardTelemetryToAgent = _forwardTelemetryToAgent,
+                    CloudSafetyEnabled = _cloudSafetyEnabled,
+                    CloudUnsafePolls = _cloudUnsafePolls,
+                    ClearSafePolls = _clearSafePolls,
                 };
                 File.WriteAllText(SettingsPath,
                     JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
@@ -151,6 +245,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public int HealthCheckIntervalSeconds { get; set; }
             public string? DashboardUrl { get; set; }
             public int StarLostConsolidationSeconds { get; set; }
+            // §42 — nullable: distingue "chiave assente" (upgrade) da "false esplicito".
+            public bool? ForwardTelemetryToAgent { get; set; }
+            // §49 — nullable per upgrade-safety (chiave assente => default).
+            public bool? CloudSafetyEnabled { get; set; }
+            public int? CloudUnsafePolls { get; set; }
+            public int? ClearSafePolls { get; set; }
         }
     }
 }
