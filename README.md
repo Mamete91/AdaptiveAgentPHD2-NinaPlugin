@@ -1,180 +1,135 @@
-# Adaptive Agent for PHD2 — Dashboard (NINA Plugin)
+# Adaptive Agent for PHD2 — Dashboard (N.I.N.A. plugin)
 
-Plugin minimale per NINA che aggiunge un pannello dockable con la dashboard web
-dell'**Adaptive Agent for PHD2**, esposta su `http://localhost:8080`.
+A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session: a dockable dashboard panel, per-exposure telemetry forwarding, and a Safety Monitor that reacts to persistent clouds and lost guide stars.
 
----
+The Adaptive Agent itself is a separate, standalone application. This plugin is the bridge between it and N.I.N.A.
 
-## Cosa fa
-
-Apre, all'interno di NINA, la dashboard dell'Agente tramite un controllo WebView2.
-Da **v1.1** aggiunge sopra il pannello un **badge di stato** dell'Agente e un pulsante
-**Avvia Adaptive Agent**; da **v1.3** inoltra all'Agente le **metriche per-posa** di NINA
-(HFR, conteggio stelle, statistiche immagine) a ogni light salvata; da **v1.4** il **Safety
-Monitor** dichiara unsafe anche sulle **nubi** (trasparenza CLOUD persistente), non solo su
-STAR_LOST. Nessuna logica adattiva nel plugin: la trasparenza è riconosciuta dall'Agente
-(processo Python separato); il plugin è ponte di telemetria/UX + segnale di sicurezza.
+> **Engine repository:** [Mamete91/AdaptiveAgentPHD2](https://github.com/Mamete91/AdaptiveAgentPHD2) — the adaptive guiding engine, its architecture documentation and the web dashboard.
 
 ---
 
-## v1.1 — Launch Agent + badge stato
+## What is the Adaptive Agent?
 
-Due rifiniture UX leggere che condividono un piccolo poller (`GET /about` ogni 15s, configurabile):
+PHD2 guides with fixed, user-set parameters, optimized frame by frame around the single correction pulse. Sky conditions are not fixed: seeing, transparency and target altitude drift over a night, and parameters tuned at dusk may be wrong by midnight.
 
-- **Badge di stato** sopra il WebView:
-  - 🟢 **Agente online v2.2** (verde) quando l'Agente risponde su `/about`.
-  - ⚪ **Agente offline** (grigio) quando non risponde.
-- **Pulsante "Avvia Adaptive Agent"** sopra il WebView:
-  - Abilitato solo quando l'Agente è **offline** *e* il percorso al `Avvia.bat` è configurato.
-  - Disabilitato quando l'Agente è già **online** (tooltip "Agente già in esecuzione").
-  - Se il percorso non è impostato, mostra "Configura percorso Avvia.bat nelle settings".
+The **Adaptive Agent** closes this outer loop. It observes guiding over minutes, adjusts **only two PHD2 guide-algorithm parameters — Aggressiveness and MinMove —** and, through its **Outcome-First controller**, keeps an adjustment only if the measured outcome (guiding RMS against a continuously measured baseline) actually improves. It never touches mount, calibration or dithering settings, and it restores the user's original parameters when it shuts down.
 
-Questa versione **non** mette in pausa la sequenza NINA e **non** interagisce col Sequencer:
-è puramente una comodità per evitare di aprire Esplora Risorse per lanciare l'Agente.
+It is adaptive control, not machine learning: every decision is inspectable in the logs and on the **dashboard**, a local web UI served at `http://localhost:8080`.
 
-### Configurazione (prima volta)
-
-In NINA: **Options → Plugins → Adaptive Agent for PHD2 — Dashboard**. Imposta:
-
-| Impostazione | Default | Note |
-|--------------|---------|------|
-| **Percorso Avvia.bat** | *(vuoto)* | Es. `...\AdaptiveAgentPHD2\Pacchetto_Distribuzione\Avvia.bat`. Usa "Sfoglia...". |
-| **Intervallo controllo stato (s)** | `15` | Range 5–120. Più basso = badge più reattivo. |
-| **URL dashboard** | `http://localhost:8080` | Cambialo solo se hai modificato la porta dell'Agente. |
-
-Le impostazioni si salvano automaticamente in
-`%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlugin\settings.json`.
+All communication is HTTP on `localhost` only, using public APIs (PHD2's server protocol, N.I.N.A.'s plugin SDK). No external services are contacted.
 
 ---
 
-## v1.3 — Inoltro telemetria per-posa all'Agente (§42)
+## What the plugin does
 
-A ogni light frame salvata, il plugin si iscrive a `IImageSaveMediator.ImageSaved` e
-inoltra all'Agente le metriche per-posa di NINA via `POST <URL dashboard>/nina/telemetry`
-(contratto `schema_version=1`): **HFR**, **HFR std**, **conteggio stelle**, **statistiche
-immagine** (mean/median/stdev ADU), **durata posa** e **filtro**.
+Three functions. All optional, all fail-safe: **if the Agent is offline, N.I.N.A. is never disturbed** — no exceptions, no popups, the sequence continues.
 
-- **Opzionale e graceful**: se l'Agente è offline (o il toggle è off) non succede nulla —
-  nessuna eccezione, nessun popup, NINA prosegue la sequenza. L'inoltro è *fire-and-forget*
-  con timeout breve (3 s) e nessun retry (la posa successiva riprova da sé).
-- **Toggle**: *«Inoltra le metriche per-posa di NINA all'Agente»* nelle settings del plugin
-  (default **attivo**). Disattivandolo, il plugin resta in ascolto ma non invia alcun dato.
-- **Requisito lato Agente**: l'endpoint `POST /nina/telemetry` esiste dall'Agente **§41**
-  (v2.6). L'Agente espone i dati ricevuti in `GET /status` sotto il blocco `nina`
-  (`connected`, `metrics`…); dopo ~3 min senza nuove pose torna `connected:false`
-  conservando l'ultimo valore. Nessun consumatore agisce ancora sui dati: è il "tubo" su
-  cui poggeranno le feature successive (context-gating, indice di trasparenza, ecc.).
-- **Nota SDK**: **FWHM** (arcsec) ed **eccentricità** non sono esposti da
-  `IStarDetectionAnalysis` in NINA **3.2.0.9001** → vengono **omessi** finché la NINA
-  installata non li espone (build successive); il contratto è già predisposto a riceverli.
+### 1. Dockable dashboard panel
+Renders the Agent dashboard inside N.I.N.A. through WebView2, with an online/offline status badge and a **Launch Adaptive Agent** button (starts the Agent's launcher script configured in the plugin settings). No separate browser window needed.
 
----
+### 2. Per-exposure N.I.N.A. telemetry (N.I.N.A. → Agent)
+On every saved light frame the plugin forwards N.I.N.A.'s image metrics to the Agent (`POST /nina/telemetry`): HFR, HFR standard deviation, star count, image statistics (mean/median/stdev ADU), exposure duration and filter. Fire-and-forget with a 3-second timeout and no retries. The Agent uses these metrics to recognize **sky transparency** (CLEAR / HAZE / CLOUD) independently of guiding.
 
-## v1.4 — Safety su nubi (N6): il Safety Monitor ferma la ripresa sulle nubi (§49)
+### 3. Safety Monitor (Agent → N.I.N.A.)
+A virtual **Safety Monitor** device that N.I.N.A. can use like any other safety device. It reports **unsafe** when:
 
-Il **Safety Monitor** virtuale ora dichiara **unsafe** — accanto alla condizione STAR_LOST
-esistente — anche quando la **trasparenza del cielo** (riconosciuta dall'Agente dai light
-NINA: conteggio stelle + fondo) resta **CLOUD** per alcuni poll consecutivi. Così NINA può
-mettere in pausa la ripresa **prima** di perdere la stella di guida (niente light sprecati
-sotto le nuvole).
+- the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes), or
+- N.I.N.A. transparency has stayed **CLOUD** for several consecutive polls (asymmetric hysteresis: slow toward unsafe, faster back to safe — a brief haze does not trigger it).
 
-- **Isteresi asimmetrica** (tarabile nelle settings): **lento** verso unsafe (`CLOUD → unsafe`
-  dopo N poll, default 8), **più rapido** verso safe (`CLEAR/HAZE → safe` dopo M poll, default
-  4). Una velatura breve (HAZE transitorio) NON manda unsafe.
-- **Fail-safe:** se l'Agente è spento o la telemetria è stantia, la condizione nubi è **neutra**
-  (nessun unsafe spurio) — resta attiva solo la logica STAR_LOST come backstop.
-- **Toggle** "Safety su nubi attiva" (default ON) + soglie N/M nelle settings del plugin.
-- **Confine invariato:** il plugin **segnala** unsafe/safe (con la causa: STAR_LOST o CLOUD);
-  **NINA decide** cosa farne (pausa/park) secondo la policy safety configurata.
-- Version-agnostic: legge `/status` come JSON puro → gira su NINA **3.2 e 3.3**.
+**Fail-safe by design:** if the Agent is offline or its telemetry is stale, the cloud condition stays neutral — no spurious unsafe. The plugin only *reports* the state with its cause; N.I.N.A. decides what to do (pause, park) according to your safety policy.
 
-> **⚠️ Nota utente (importante):** perché la protezione sia **continua** durante la ripresa,
-> in NINA la sequenza deve avere un blocco **"Wait Until Safe" DENTRO il loop** di
-> acquisizione (non solo all'inizio). Altrimenti il Safety Monitor viene consultato una volta
-> sola e le nubi che arrivano a metà sequenza non mettono in pausa.
+> ⚠️ **Important:** for continuous protection, place a **"Wait Until Safe"** instruction **inside your acquisition loop** (not only at the start of the sequence). Otherwise the Safety Monitor is consulted once and clouds arriving mid-sequence will not pause the imaging run.
 
 ---
 
-## Prerequisiti
+## Architecture
 
-| Requisito | Note |
-|-----------|------|
-| **NINA 3.2+** | Compatibile con NINA **3.2 e successive** (inclusa la 3.3). Versione installata sul tuo PC |
-| **Adaptive Agent for PHD2** | Il pacchetto Python deve essere in esecuzione (`Avvia.bat`) |
-| **Microsoft Edge / WebView2 Runtime** | Pre-installato su Windows 11 e Windows 10 aggiornato. Se il pannello appare bianco, installa manualmente il runtime dal sito Microsoft: https://developer.microsoft.com/en-us/microsoft-edge/webview2/ |
+```
+N.I.N.A. ──ImageSaved metrics──▶  Adaptive Agent  ◀──guide events── PHD2
+ plugin  ◀──/status (safety)───  localhost:8080   ──Aggr/MinMove──▶
+    │
+    └── dockable WebView2 panel ──▶ dashboard
+```
+
+The plugin reads the Agent's HTTP endpoints (`/about` for health, `/status` for the safety state) as plain JSON, which keeps it version-agnostic with respect to the Agent.
 
 ---
 
-## Build
+## Requirements
 
-Richiede **.NET 8 SDK** (x64).
+| Requirement | Notes |
+|-------------|-------|
+| **N.I.N.A. 3.2 or later** | Compatible with N.I.N.A. **3.2 and later, including 3.3**. Built against the N.I.N.A. 3.2.0.9001 SDK |
+| **Adaptive Agent for PHD2** | The [engine package](https://github.com/Mamete91/AdaptiveAgentPHD2) must be running locally |
+| **WebView2 Runtime** | Preinstalled on Windows 11 and updated Windows 10. If the panel appears blank, install it from [Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) |
+
+---
+
+## Installation
+
+Building requires the **.NET 8 SDK** (x64):
 
 ```powershell
 cd src\AdaptiveAgentForPHD2.NinaPlugin
 dotnet build -c Release
 ```
 
-Output: `bin\Release\AdaptiveAgentForPHD2.NinaPlugin.dll`
-
----
-
-## Installazione
-
-Dalla root del repository:
+Then, from the repository root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install-plugin.ps1
 ```
 
-Il plugin viene copiato in:
-```
-%LOCALAPPDATA%\NINA\Plugins\3.0.0\AdaptiveAgentForPHD2.NinaPlugin.dll
-```
+The plugin DLL is copied to `%LOCALAPPDATA%\NINA\Plugins\3.0.0\`. Restart N.I.N.A. to load it.
 
-Riavvia NINA per caricarlo.
+*(Distribution through the N.I.N.A. Plugin Manager is planned.)*
 
 ---
 
-## Utilizzo
+## Configuration
 
-1. Apri NINA e, dal menu **Window**, cerca **Adaptive Agent for PHD2**. Aggancia il pannello.
-2. (v1.1) La prima volta, imposta il percorso al `Avvia.bat` nelle settings del plugin
-   (vedi *Configurazione* sopra).
-3. Avvia l'Agente: clicca **Avvia Adaptive Agent** (oppure lancia `Avvia.bat` manualmente).
-4. Entro qualche secondo il badge passa a 🟢 **Agente online vX.Y** e la dashboard si carica.
-5. Usa il pulsante **Reload** per ricaricare la pagina manualmente.
+In N.I.N.A.: **Options → Plugins → Adaptive Agent for PHD2 — Dashboard**.
 
-Se l'Agente non e' in esecuzione, il badge resta ⚪ **Agente offline** e compare un pannello
-di fallback con il pulsante **Riprova**.
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Path to `Avvia.bat` (Agent launcher) | *(empty)* | Used by the **Launch Adaptive Agent** button |
+| Health-check interval (s) | `15` | How often the plugin polls the Agent (range 5–120) |
+| Dashboard URL | `http://localhost:8080` | Change only if you changed the Agent's port |
+| Forward per-exposure telemetry | **on** | Toggle for function 2 above |
+| Cloud safety enabled | **on** | Toggle for the CLOUD condition, plus its unsafe/safe poll thresholds |
+| STAR_LOST consolidation (s) | `300` | How long STAR_LOST must persist before unsafe |
 
----
-
-## Limiti noti v1.1
-
-- **WebView2 Runtime**: su Windows 10 datati il pannello puo' apparire bianco se
-  il runtime non e' installato (vedi Prerequisiti).
-- **Solo localhost**: il poller e il WebView puntano all'host della dashboard
-  configurata (default `http://localhost:8080`); è pensato per un Agente sulla
-  stessa macchina di NINA.
-- **Nessuna auto-pause**: il plugin non mette in pausa la sequenza NINA né reagisce a
-  `/status`. È una pura rifinitura UX (eventuale auto-pause valutabile in futuro).
-- **NINA 3.2+**: il plugin è compatibile con NINA **3.2 e successive** (inclusa la 3.3);
-  compila sul SDK NINA 3.2.0.9001 e legge `/status` come JSON puro. Versioni precedenti
-  alla 3.2 non supportate.
-
-> Risolti in v1.1 rispetto a v1.0: URL ora configurabile nelle settings; health-check
-> proattivo ogni 5–120 s con badge di stato.
+Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlugin\settings.json`.
 
 ---
 
-## Supporto
+## Usage
 
-Gruppo Telegram della community: https://t.me/+eewRNpvElSs5OWY8
+1. Open N.I.N.A. and dock the **Adaptive Agent for PHD2** panel from the **Window** menu.
+2. Set the path to the Agent's `Avvia.bat` in the plugin settings (first time only).
+3. Start the Agent with the **Launch Adaptive Agent** button (or run `Avvia.bat` manually).
+4. Within a few seconds the badge turns to *online* and the dashboard loads.
+5. Optionally connect the **Adaptive Agent Safety Monitor** as a safety device and use *Wait Until Safe* in your sequence.
 
 ---
 
-## Licenza
+## Changelog (summary)
 
-Distribuito con licenza **BSD-3-Clause** — vedi il file [`LICENSE`](LICENSE).
+| Version | Highlights |
+|---------|-----------|
+| **1.4** | Safety Monitor: cloud condition on N.I.N.A. transparency (asymmetric hysteresis, fail-safe) alongside STAR_LOST |
+| 1.3 | Per-exposure telemetry forwarding to the Agent (fire-and-forget) |
+| 1.1 | Agent status badge and Launch button above the panel |
+| 1.0 | Dockable WebView2 panel embedding the dashboard |
+
+---
+
+## Community & support
+
+Official community and beta-testing group (Telegram): https://t.me/+eewRNpvElSs5OWY8
+
+## License
+
+**BSD-3-Clause** — see [`LICENSE`](LICENSE).
 
 Copyright (c) 2026 Alessandro Curci.

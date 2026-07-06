@@ -208,7 +208,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
             catch (Exception ex)
             {
-                Logger.Error($"Lettura settings plugin fallita: {ex.Message}");
+                Logger.Error($"Failed to read plugin settings: {ex.Message}");
             }
             return settings;
         }
@@ -235,7 +235,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
             catch (Exception ex)
             {
-                Logger.Error($"Salvataggio settings plugin fallito: {ex.Message}");
+                Logger.Error($"Failed to save plugin settings: {ex.Message}");
             }
         }
 

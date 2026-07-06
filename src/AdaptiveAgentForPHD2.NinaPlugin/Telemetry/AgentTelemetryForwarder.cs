@@ -82,7 +82,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
             }
             catch (Exception ex)
             {
-                Logger.Debug($"AgentTelemetryForwarder: handler ImageSaved ignorato ({ex.Message})");
+                Logger.Debug($"AgentTelemetryForwarder: ImageSaved handler ignored ({ex.Message})");
             }
         }
 
@@ -145,7 +145,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
             catch (Exception ex)
             {
                 // Agente offline / connection refused / timeout / 5xx -> ignorato.
-                Logger.Debug($"AgentTelemetryForwarder: POST telemetria fallito ({ex.Message}) — ignorato");
+                Logger.Debug($"AgentTelemetryForwarder: telemetry POST failed ({ex.Message}) — ignored");
             }
         }
 

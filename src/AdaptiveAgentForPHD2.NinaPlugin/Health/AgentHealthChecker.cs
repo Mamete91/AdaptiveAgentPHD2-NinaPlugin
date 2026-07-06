@@ -104,7 +104,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
             }
             catch (Exception ex)
             {
-                Logger.Error($"AgentHealthChecker tick fallito: {ex.Message}");
+                Logger.Error($"AgentHealthChecker tick failed: {ex.Message}");
             }
         }
 

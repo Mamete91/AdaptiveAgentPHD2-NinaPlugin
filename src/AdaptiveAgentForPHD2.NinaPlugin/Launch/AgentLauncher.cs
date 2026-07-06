@@ -18,16 +18,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Launch
     public sealed record LaunchResult(bool Success, string Message, LaunchLevel Level)
     {
         public static LaunchResult Launched =>
-            new(true, "Processo avviato. L'Agente sarà pronto tra qualche secondo.", LaunchLevel.Info);
+            new(true, "Process started. The Agent will be ready in a few seconds.", LaunchLevel.Info);
 
         public static LaunchResult NotConfigured =>
-            new(false, "Path al file Avvia.bat non impostato. Configuralo nelle settings del plugin.", LaunchLevel.Warning);
+            new(false, "Path to Avvia.bat is not set. Configure it in the plugin settings.", LaunchLevel.Warning);
 
         public static LaunchResult FileNotFound =>
-            new(false, "Il file Avvia.bat indicato nelle settings non esiste. Verifica il percorso.", LaunchLevel.Warning);
+            new(false, "The Avvia.bat file configured in the settings does not exist. Check the path.", LaunchLevel.Warning);
 
         public static LaunchResult Error(string message) =>
-            new(false, $"Errore nell'avvio: {message}", LaunchLevel.Error);
+            new(false, $"Launch failed: {message}", LaunchLevel.Error);
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Launch
             }
             catch (Exception ex)
             {
-                Logger.Error($"Avvio Adaptive Agent fallito: {ex.Message}");
+                Logger.Error($"Failed to launch Adaptive Agent: {ex.Message}");
                 return Task.FromResult(LaunchResult.Error(ex.Message));
             }
         }

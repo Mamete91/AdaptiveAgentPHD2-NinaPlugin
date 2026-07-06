@@ -87,7 +87,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             Subscribe();
             _health.StatusPollingEnabled = true;
             Connected = true;
-            Logger.Info("Adaptive Agent Safety Monitor: connesso — Agente online");
+            Logger.Info("Adaptive Agent Safety Monitor: connected — Agent online");
             return true;
         }
 
@@ -131,8 +131,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             if (!Connected) { return; }
             if (!health.IsOnline)
             {
-                Logger.Info("Adaptive Agent Safety Monitor: disconnesso — Agente non raggiungibile");
-                Notification.ShowWarning("Adaptive Agent: Agente non raggiungibile — Safety Monitor disconnesso");
+                Logger.Info("Adaptive Agent Safety Monitor: disconnected — Agent unreachable");
+                Notification.ShowWarning("Adaptive Agent: Agent unreachable — Safety Monitor disconnected");
                 Disconnect();
             }
         }
@@ -150,22 +150,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     if (_engine.LastCause == SafetyCause.Cloud)
                     {
                         // §49 N6 — nubi: la trasparenza NINA è rimasta CLOUD oltre l'isteresi.
-                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — nubi (trasparenza CLOUD per {_settings.CloudUnsafePolls} poll)");
-                        Notification.ShowWarning("Adaptive Agent: nubi persistenti (trasparenza NINA) — Safety Monitor unsafe");
+                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — clouds (NINA transparency CLOUD for {_settings.CloudUnsafePolls} polls)");
+                        Notification.ShowWarning("Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe");
                     }
                     else
                     {
                         var secs = _settings.StarLostConsolidationSeconds;
-                        var dur = secs >= 60 ? $"{secs / 60} minuti" : $"{secs}s";
-                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST consolidato da {dur}");
-                        Notification.ShowWarning($"Adaptive Agent: guida persa da {dur} — Safety Monitor unsafe");
+                        var dur = secs >= 60 ? $"{secs / 60} minutes" : $"{secs}s";
+                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST sustained for {dur}");
+                        Notification.ShowWarning($"Adaptive Agent: guiding lost for {dur} — Safety Monitor unsafe");
                     }
                     break;
 
                 case SafetyDecision.BecameSafe:
                     IsSafe = true;
-                    Logger.Info("Adaptive Agent Safety Monitor: SAFE — guida tornata NORMAL");
-                    Notification.ShowInformation("Adaptive Agent: guida ripristinata — Safety Monitor safe");
+                    Logger.Info("Adaptive Agent Safety Monitor: SAFE — guiding back to NORMAL");
+                    Notification.ShowInformation("Adaptive Agent: guiding recovered — Safety Monitor safe");
                     break;
 
                 case SafetyDecision.NoChange:
