@@ -44,11 +44,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         public string Name => "Adaptive Agent for PHD2 — Guide Safety";
         public string DisplayName => Name;
         public string Description =>
-            "Riflette lo stato della guida dell'Adaptive Agent for PHD2. Dichiara unsafe quando STAR_LOST " +
-            "persiste oltre il timeout configurato (default 5 minuti) oppure (v1.4, N6) quando la trasparenza " +
-            "NINA resta CLOUD oltre l'isteresi configurata. Fail-safe: senza telemetria fresca resta solo STAR_LOST.";
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.4.0.0 — Safety Monitor virtuale";
-        public string DriverVersion => "1.4.0.0";
+            "Reflects the guiding and sky state of the Adaptive Agent for PHD2. Reports unsafe when " +
+            "STAR_LOST persists beyond the configured timeout, when sky transparency stays degraded " +
+            "(index-based persistence, v1.5), when NINA telemetry goes stale while the sky was degraded, " +
+            "or when the Agent becomes unreachable during an active session. Losing reliable observation " +
+            "is treated as a risk condition — never as \"safe\".";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.5.0.0 — virtual Safety Monitor";
+        public string DriverVersion => "1.5.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -93,11 +95,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
 
         public void Disconnect()
         {
-            // Idempotente: NINA puo' chiamarlo dopo che noi stessi abbiamo gia' fatto auto-disconnect.
+            // Disconnessione ESPLICITA (utente/NINA). Fix N6 (Bug C): NON imposta piu'
+            // IsSafe=true — un disconnect non deve mai fabbricare un "sicuro" (NINA ignora
+            // IsSafe da disconnesso; Connect() riparte da stato neutro). Inoltre il monitor
+            // non si auto-disconnette piu' quando l'agente e' irraggiungibile.
             Unsubscribe();
             _health.StatusPollingEnabled = false;
             _engine.Reset();
-            IsSafe = true; // stato neutro a riposo
             Connected = false;
         }
 
@@ -108,6 +112,31 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         public string SendCommandString(string command, bool raw = true) => throw new NotImplementedException();
         public bool SendCommandBool(string command, bool raw = true) => throw new NotImplementedException();
         public void SendCommandBlind(string command, bool raw = true) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Fix N6 (Bug C-bis): le toast di NINA toccano oggetti WPF con affinita' di thread;
+        /// dal thread del timer vanno marshallate sul dispatcher UI. Un'eccezione qui non deve
+        /// MAI propagare (interromperebbe la valutazione safety del tick): log Debug e avanti.
+        /// </summary>
+        private static void ShowToast(Action toast)
+        {
+            try
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                {
+                    dispatcher.BeginInvoke(toast);
+                }
+                else
+                {
+                    toast();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"Adaptive Agent Safety Monitor: toast failed ({ex.Message}) — ignored");
+            }
+        }
 
         private void Subscribe()
         {
@@ -125,15 +154,25 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _health.StatusUpdated -= OnStatusUpdated;
         }
 
-        /// <summary>Auto-disconnessione silenziosa quando l'Agente smette di rispondere a /about.</summary>
+        /// <summary>
+        /// Fix N6 (Bug C): l'irraggiungibilita' dell'Agente NON disconnette piu' il monitor
+        /// (prima: Disconnect() + IsSafe=true => la perdita dell'agente diventava "sicuro",
+        /// fail-dangerous — provato dai log NINA del 2026-07-10). Il monitor resta connesso;
+        /// il decision engine riceve AgentReachable=false a ogni tick e, a sessione attiva,
+        /// escala verso UNSAFE con isteresi (AgentLostUnsafePolls).
+        /// </summary>
         private void OnHealthChanged(AgentHealth health)
         {
             if (!Connected) { return; }
             if (!health.IsOnline)
             {
-                Logger.Info("Adaptive Agent Safety Monitor: disconnected — Agent unreachable");
-                Notification.ShowWarning("Adaptive Agent: Agent unreachable — Safety Monitor disconnected");
-                Disconnect();
+                Logger.Info("Adaptive Agent Safety Monitor: Agent unreachable — holding connection, agent-lost watchdog armed");
+                ShowToast(() => Notification.ShowWarning(
+                    "Adaptive Agent: Agent unreachable — Safety Monitor is watching (unsafe if it persists during an active session)"));
+            }
+            else
+            {
+                Logger.Info("Adaptive Agent Safety Monitor: Agent reachable again");
             }
         }
 
@@ -147,31 +186,48 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             {
                 case SafetyDecision.BecameUnsafe:
                     IsSafe = false;
-                    if (_engine.LastCause == SafetyCause.Cloud)
+                    switch (_engine.LastCause)
                     {
-                        // §49 N6 — nubi: la trasparenza NINA è rimasta CLOUD oltre l'isteresi.
-                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — clouds (NINA transparency CLOUD for {_settings.CloudUnsafePolls} polls)");
-                        Notification.ShowWarning("Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe");
-                    }
-                    else
-                    {
-                        var secs = _settings.StarLostConsolidationSeconds;
-                        var dur = secs >= 60 ? $"{secs / 60} minutes" : $"{secs}s";
-                        Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST sustained for {dur}");
-                        Notification.ShowWarning($"Adaptive Agent: guiding lost for {dur} — Safety Monitor unsafe");
+                        case SafetyCause.Cloud:
+                            Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — persistent transparency degradation (clouds)");
+                            ShowToast(() => Notification.ShowWarning(
+                                "Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe"));
+                            break;
+                        case SafetyCause.StaleTelemetry:
+                            Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — NINA telemetry stale for {_settings.StaleUnsafePolls} polls while last known sky was degraded");
+                            ShowToast(() => Notification.ShowWarning(
+                                "Adaptive Agent: telemetry went stale while the sky was degraded — Safety Monitor unsafe"));
+                            break;
+                        case SafetyCause.AgentLost:
+                            Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — Adaptive Agent unreachable for {_settings.AgentLostUnsafePolls} polls during an active session");
+                            ShowToast(() => Notification.ShowWarning(
+                                "Adaptive Agent: Agent unreachable during an active session — Safety Monitor unsafe"));
+                            break;
+                        default:
+                            var secs = _settings.StarLostConsolidationSeconds;
+                            var dur = secs >= 60 ? $"{secs / 60} minutes" : $"{secs}s";
+                            Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST sustained for {dur}");
+                            ShowToast(() => Notification.ShowWarning(
+                                $"Adaptive Agent: guiding lost for {dur} — Safety Monitor unsafe"));
+                            break;
                     }
                     break;
 
                 case SafetyDecision.BecameSafe:
                     IsSafe = true;
-                    Logger.Info("Adaptive Agent Safety Monitor: SAFE — guiding back to NORMAL");
-                    Notification.ShowInformation("Adaptive Agent: guiding recovered — Safety Monitor safe");
+                    Logger.Info("Adaptive Agent Safety Monitor: SAFE — conditions recovered");
+                    ShowToast(() => Notification.ShowInformation(
+                        "Adaptive Agent: conditions recovered — Safety Monitor safe"));
                     break;
 
                 case SafetyDecision.NoChange:
                 default:
                     break;
             }
+
+            // §3 osservabilita' — una riga per tick, stato POST-decisione (Debug: segue il
+            // livello di log globale di NINA, come da convenzioni plugin).
+            Logger.Debug($"N6 tick: {_engine.LastTickSummary} -> {(IsSafe ? "SAFE" : "UNSAFE")} ({decision})");
         }
     }
 }

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- NU1701: transitivi NINA legati a .NET Framework (come nel progetto plugin) -->
+    <NoWarn>NU1701;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.2.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.2.2" />
+    <!--
+      A differenza del progetto plugin (ExcludeAssets=runtime: NINA fornisce le DLL a runtime),
+      qui i runtime asset SERVONO: il test host deve caricare NINA.Core & co. dal bin dei test.
+    -->
+    <PackageReference Include="NINA.Plugin" Version="3.2.0.9001" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdaptiveAgentForPHD2.NinaPlugin\AdaptiveAgentForPHD2.NinaPlugin.csproj" />
+  </ItemGroup>
+
+</Project>

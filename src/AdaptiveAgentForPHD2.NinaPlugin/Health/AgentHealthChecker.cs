@@ -16,16 +16,21 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
     /// Snapshot minimale di GET /status per il Safety Monitor.
     /// v1.2: controller.guiding_state (logica STAR_LOST). v1.4 (N6): nina.transparency
     /// (state discreto CLEAR/HAZE/CLOUD + fresh) per la safety-su-nubi.
+    /// v1.5 (fix N6): TelemetryAgeS (eta' telemetria, osservabilita') e AgentReachable
+    /// (false = /about irraggiungibile: il decision engine arma il watchdog agent-lost —
+    /// prima l'irraggiungibilita' produceva disconnect-to-SAFE, fail-dangerous).
     /// IsValid = false quando il payload e' null/incompleto/malformato => no-op nel decision engine.
     /// I campi trasparenza sono TOLLERANTI: assenti (Agente vecchio / telemetria off) =>
-    /// TransparencyState=null, TransparencyFresh=false => N6 FAIL-SAFE (nubi neutre).
+    /// TransparencyState=null, TransparencyFresh=false.
     /// </summary>
     public sealed record AgentStatusSnapshot(
         string? GuidingState,
         bool IsValid,
         string? TransparencyState = null,
         bool TransparencyFresh = false,
-        double? TransparencyIndex = null);
+        double? TransparencyIndex = null,
+        double? TelemetryAgeS = null,
+        bool AgentReachable = true);
 
     /// <summary>
     /// Poller leggero che interroga GET &lt;DashboardUrl&gt;/about a intervalli regolari.
@@ -67,7 +72,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         public AgentHealthChecker(PluginSettings settings)
         {
             _settings = settings;
-            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            // 5s (era 3s): riduce gli "offline" transitori quando l'agente e' momentaneamente
+            // lento a rispondere. Robustezza di comunicazione — NON e' il fix di N6.
+            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
             _settings.IntervalChanged += OnIntervalChanged;
         }
 
@@ -89,22 +96,52 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         private async void OnTick(object? state)
         {
             // async void: il corpo non deve MAI lasciar sfuggire eccezioni (crasherebbe NINA).
+            // Fix N6 (Bug C-bis): try/catch PER-STADIO. Un subscriber che lancia (es. eccezione
+            // cross-thread WPF) viene loggato col motivo e NON salta piu' la valutazione safety
+            // del tick — prima l'intero tick veniva abbandonato in silenzio.
+            AgentHealth health;
             try
             {
-                var health = await ProbeAsync().ConfigureAwait(false);
-                HandleHealth(health);
-
-                // /status va interrogato a OGNI tick (non gated dalla equality di /about):
-                // il Safety Monitor lo abilita solo quando connesso.
-                if (_statusPollingEnabled)
-                {
-                    var snap = await ProbeStatusAsync().ConfigureAwait(false);
-                    StatusUpdated?.Invoke(snap);
-                }
+                health = await ProbeAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Logger.Error($"AgentHealthChecker tick failed: {ex.Message}");
+                // ProbeAsync non lancia per design; cintura di sicurezza.
+                Logger.Error($"AgentHealthChecker: probe failed unexpectedly ({ex.Message})");
+                health = new AgentHealth(false, null);
+            }
+
+            try
+            {
+                HandleHealth(health);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"AgentHealthChecker: a StatusChanged subscriber threw ({ex.Message}) — safety evaluation continues");
+            }
+
+            if (!_statusPollingEnabled) { return; }
+
+            // /status va interrogato a OGNI tick. Fix N6 (Bug C): se l'agente e' irraggiungibile
+            // il Safety Monitor deve comunque vedere il tick (AgentReachable=false) per armare
+            // il watchdog agent-lost — prima il tick offline era invisibile alla safety.
+            AgentStatusSnapshot snap;
+            if (!health.IsOnline)
+            {
+                snap = new AgentStatusSnapshot(null, false, AgentReachable: false);
+            }
+            else
+            {
+                snap = await ProbeStatusAsync().ConfigureAwait(false);
+            }
+
+            try
+            {
+                StatusUpdated?.Invoke(snap);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"AgentHealthChecker: a StatusUpdated subscriber threw ({ex.Message})");
             }
         }
 
@@ -166,6 +203,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                 string? transpState = null;
                 bool transpFresh = false;
                 double? transpIndex = null;
+                double? telemetryAge = null;
                 if (doc.RootElement.TryGetProperty("nina", out var nina)
                     && nina.ValueKind == JsonValueKind.Object
                     && nina.TryGetProperty("transparency", out var transp)
@@ -184,6 +222,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     {
                         transpIndex = ix.GetDouble();
                     }
+                    // v1.5 (fix N6 §3) — eta' della telemetria in secondi, per log/diagnosi.
+                    // Tollerante: Agente <v2.8 non la espone => null.
+                    if (transp.TryGetProperty("age_s", out var ag) && ag.ValueKind == JsonValueKind.Number)
+                    {
+                        telemetryAge = ag.GetDouble();
+                    }
                 }
 
                 if (doc.RootElement.TryGetProperty("controller", out var controller)
@@ -191,7 +235,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     && controller.TryGetProperty("guiding_state", out var gs)
                     && gs.ValueKind == JsonValueKind.String)
                 {
-                    return new AgentStatusSnapshot(gs.GetString(), true, transpState, transpFresh, transpIndex);
+                    return new AgentStatusSnapshot(gs.GetString(), true, transpState, transpFresh,
+                                                   transpIndex, telemetryAge);
                 }
                 // Payload presente ma senza il campo atteso => no-op per il decision engine.
                 return new AgentStatusSnapshot(null, false);

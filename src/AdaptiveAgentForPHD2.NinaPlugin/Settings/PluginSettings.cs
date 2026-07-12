@@ -1,4 +1,5 @@
 #nullable enable
+using AdaptiveAgentForPHD2.NinaPlugin.Safety;
 using NINA.Core.Utility;
 using System;
 using System.IO;
@@ -11,8 +12,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
     /// NINA 3.2 SDK non espone un IPluginOptionsAccessor (verificato in pre-flight),
     /// quindi serializziamo manualmente in %LOCALAPPDATA%\NINA\Plugins\&lt;plugin&gt;\settings.json.
     /// Deriva da BaseINPC (NINA) per il binding two-way con la pagina opzioni.
+    /// Implementa ISafetySettings: la vista read-only consumata dal SafetyDecisionEngine.
     /// </summary>
-    public sealed class PluginSettings : BaseINPC
+    public sealed class PluginSettings : BaseINPC, ISafetySettings
     {
         public const string DefaultDashboardUrl = "http://localhost:8080";
         public const int DefaultIntervalSeconds = 15;
@@ -31,6 +33,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         public const int DefaultClearSafePolls = 4;     // poll consecutivi CLEAR/HAZE -> SAFE
         public const int MinClearSafePolls = 1;
         public const int MaxClearSafePolls = 60;
+        // Fix N6 (§1/§2/§5) — nuova logica di sicurezza, nata operativa con kill-switch.
+        // Soglie indice allineate a N1 (config agente: cloud_below=0.5, clear_above=0.8).
+        public const bool DefaultUseIndexCloudLogic = true;
+        public const double DefaultCloudIndexAccumulateBelow = 0.5;
+        public const double DefaultCloudIndexDrainAbove = 0.8;
+        public const bool DefaultStaleUnsafeEnabled = true;
+        public const int DefaultStaleUnsafePolls = 8;   // ~2 min al default 15s
+        public const int MinStaleUnsafePolls = 2;
+        public const int MaxStaleUnsafePolls = 120;
+        public const bool DefaultAgentLostUnsafeEnabled = true;
+        public const int DefaultAgentLostUnsafePolls = 4;  // ~1 min: perdere l'osservazione e' peggio
+        public const int MinAgentLostUnsafePolls = 1;
+        public const int MaxAgentLostUnsafePolls = 60;
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -44,6 +59,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private bool _cloudSafetyEnabled = DefaultCloudSafetyEnabled;
         private int _cloudUnsafePolls = DefaultCloudUnsafePolls;
         private int _clearSafePolls = DefaultClearSafePolls;
+        private bool _useIndexCloudLogic = DefaultUseIndexCloudLogic;
+        private double _cloudIndexAccumulateBelow = DefaultCloudIndexAccumulateBelow;
+        private double _cloudIndexDrainAbove = DefaultCloudIndexDrainAbove;
+        private bool _staleUnsafeEnabled = DefaultStaleUnsafeEnabled;
+        private int _staleUnsafePolls = DefaultStaleUnsafePolls;
+        private bool _agentLostUnsafeEnabled = DefaultAgentLostUnsafeEnabled;
+        private int _agentLostUnsafePolls = DefaultAgentLostUnsafePolls;
         private bool _suppressSave;
 
         /// <summary>Sollevato quando l'intervallo di polling cambia, così il poller riarma il timer.</summary>
@@ -170,6 +192,112 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
         }
 
+        /// <summary>
+        /// Fix N6 §2 — true: persistenza CLOUD calcolata sull'INDICE di trasparenza con
+        /// accumulatore leaky (HAZE non azzera). false = kill-switch: logica legacy a poll
+        /// consecutivi sullo stato discreto (comportamento pre-fix, Bug A incluso).
+        /// </summary>
+        public bool UseIndexCloudLogic
+        {
+            get => _useIndexCloudLogic;
+            set
+            {
+                if (_useIndexCloudLogic == value) { return; }
+                _useIndexCloudLogic = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Indice sotto cui il degrado accumula (+1/poll). Allineato a cloud_below di N1.</summary>
+        public double CloudIndexAccumulateBelow
+        {
+            get => _cloudIndexAccumulateBelow;
+            set
+            {
+                var clamped = Math.Clamp(value, 0.05, 0.9);
+                if (Math.Abs(_cloudIndexAccumulateBelow - clamped) < 1e-9) { return; }
+                _cloudIndexAccumulateBelow = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Indice sopra cui il degrado drena. Allineato a clear_above di N1.</summary>
+        public double CloudIndexDrainAbove
+        {
+            get => _cloudIndexDrainAbove;
+            set
+            {
+                var clamped = Math.Clamp(value, 0.1, 1.0);
+                if (Math.Abs(_cloudIndexDrainAbove - clamped) < 1e-9) { return; }
+                _cloudIndexDrainAbove = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>
+        /// Fix N6 §1 — telemetria stantia (oltre la finestra adattiva §43) durante sessione
+        /// attiva con ultimo contesto degradato => UNSAFE dopo StaleUnsafePolls. false =
+        /// kill-switch (comportamento pre-fix: stantio ignora le nubi).
+        /// </summary>
+        public bool StaleUnsafeEnabled
+        {
+            get => _staleUnsafeEnabled;
+            set
+            {
+                if (_staleUnsafeEnabled == value) { return; }
+                _staleUnsafeEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Poll con telemetria stantia (a contesto degradato) prima di UNSAFE.</summary>
+        public int StaleUnsafePolls
+        {
+            get => _staleUnsafePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinStaleUnsafePolls, MaxStaleUnsafePolls);
+                if (_staleUnsafePolls == clamped) { return; }
+                _staleUnsafePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>
+        /// Fix N6 §5 — agente irraggiungibile durante sessione attiva => UNSAFE dopo
+        /// AgentLostUnsafePolls (mai disconnect-to-SAFE). false = solo log, nessuna escalation.
+        /// </summary>
+        public bool AgentLostUnsafeEnabled
+        {
+            get => _agentLostUnsafeEnabled;
+            set
+            {
+                if (_agentLostUnsafeEnabled == value) { return; }
+                _agentLostUnsafeEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Poll con agente irraggiungibile (a sessione attiva) prima di UNSAFE.</summary>
+        public int AgentLostUnsafePolls
+        {
+            get => _agentLostUnsafePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinAgentLostUnsafePolls, MaxAgentLostUnsafePolls);
+                if (_agentLostUnsafePolls == clamped) { return; }
+                _agentLostUnsafePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
         public static PluginSettings Load()
         {
             var settings = new PluginSettings();
@@ -202,6 +330,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         settings.ClearSafePolls =
                             (dto.ClearSafePolls == null || dto.ClearSafePolls == 0)
                                 ? DefaultClearSafePolls : dto.ClearSafePolls.Value;
+                        // Fix N6 — chiavi assenti (upgrade <v1.5) => default (born-operative).
+                        settings.UseIndexCloudLogic = dto.UseIndexCloudLogic ?? DefaultUseIndexCloudLogic;
+                        settings.CloudIndexAccumulateBelow =
+                            (dto.CloudIndexAccumulateBelow == null || dto.CloudIndexAccumulateBelow <= 0)
+                                ? DefaultCloudIndexAccumulateBelow : dto.CloudIndexAccumulateBelow.Value;
+                        settings.CloudIndexDrainAbove =
+                            (dto.CloudIndexDrainAbove == null || dto.CloudIndexDrainAbove <= 0)
+                                ? DefaultCloudIndexDrainAbove : dto.CloudIndexDrainAbove.Value;
+                        settings.StaleUnsafeEnabled = dto.StaleUnsafeEnabled ?? DefaultStaleUnsafeEnabled;
+                        settings.StaleUnsafePolls =
+                            (dto.StaleUnsafePolls == null || dto.StaleUnsafePolls == 0)
+                                ? DefaultStaleUnsafePolls : dto.StaleUnsafePolls.Value;
+                        settings.AgentLostUnsafeEnabled = dto.AgentLostUnsafeEnabled ?? DefaultAgentLostUnsafeEnabled;
+                        settings.AgentLostUnsafePolls =
+                            (dto.AgentLostUnsafePolls == null || dto.AgentLostUnsafePolls == 0)
+                                ? DefaultAgentLostUnsafePolls : dto.AgentLostUnsafePolls.Value;
                         settings._suppressSave = false;
                     }
                 }
@@ -229,6 +373,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     CloudSafetyEnabled = _cloudSafetyEnabled,
                     CloudUnsafePolls = _cloudUnsafePolls,
                     ClearSafePolls = _clearSafePolls,
+                    UseIndexCloudLogic = _useIndexCloudLogic,
+                    CloudIndexAccumulateBelow = _cloudIndexAccumulateBelow,
+                    CloudIndexDrainAbove = _cloudIndexDrainAbove,
+                    StaleUnsafeEnabled = _staleUnsafeEnabled,
+                    StaleUnsafePolls = _staleUnsafePolls,
+                    AgentLostUnsafeEnabled = _agentLostUnsafeEnabled,
+                    AgentLostUnsafePolls = _agentLostUnsafePolls,
                 };
                 File.WriteAllText(SettingsPath,
                     JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
@@ -251,6 +402,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public bool? CloudSafetyEnabled { get; set; }
             public int? CloudUnsafePolls { get; set; }
             public int? ClearSafePolls { get; set; }
+            // Fix N6 — nullable per upgrade-safety (chiave assente da <v1.5 => default).
+            public bool? UseIndexCloudLogic { get; set; }
+            public double? CloudIndexAccumulateBelow { get; set; }
+            public double? CloudIndexDrainAbove { get; set; }
+            public bool? StaleUnsafeEnabled { get; set; }
+            public int? StaleUnsafePolls { get; set; }
+            public bool? AgentLostUnsafeEnabled { get; set; }
+            public int? AgentLostUnsafePolls { get; set; }
         }
     }
 }

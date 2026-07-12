@@ -20,7 +20,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
     public class AdaptiveAgentDashboardVM : DockableVM
     {
         public const string DefaultDashboardUrl = PluginSettings.DefaultDashboardUrl;
-        private const string LaunchLabel = "Avvia Adaptive Agent";
+        private const string LaunchLabel = "Launch Adaptive Agent";
 
         // Brush frozen => sicuri da usare cross-thread (il poller gira sul thread del timer).
         private static readonly Brush OnlineBrush = Frozen(Color.FromRgb(0x2E, 0x7D, 0x32));
@@ -30,7 +30,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
         private readonly AgentLauncher _launcher;
         private readonly AgentHealthChecker _health;
 
-        private string _statusBadgeText = "Agente offline";
+        private string _statusBadgeText = "Agent offline";
         private Brush _statusBadgeBackground = OfflineBrush;
         private string _launchButtonText = LaunchLabel;
         private bool _launchButtonEnabled;
@@ -139,28 +139,28 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
             if (health.IsOnline)
             {
                 StatusBadgeText = string.IsNullOrEmpty(health.Version)
-                    ? "Agente online"
-                    : $"Agente online v{health.Version}";
+                    ? "Agent online"
+                    : $"Agent online v{health.Version}";
                 StatusBadgeBackground = OnlineBrush;
                 LaunchButtonText = LaunchLabel;
                 LaunchButtonEnabled = false;
-                LaunchButtonTooltip = "Agente già in esecuzione";
+                LaunchButtonTooltip = "Agent already running";
             }
             else
             {
-                StatusBadgeText = "Agente offline";
+                StatusBadgeText = "Agent offline";
                 StatusBadgeBackground = OfflineBrush;
                 if (configured)
                 {
                     LaunchButtonText = LaunchLabel;
                     LaunchButtonEnabled = true;
-                    LaunchButtonTooltip = "Avvia il processo Avvia.bat dell'Agente";
+                    LaunchButtonTooltip = "Start the Agent's Avvia.bat process";
                 }
                 else
                 {
-                    LaunchButtonText = "Configura percorso Avvia.bat nelle settings";
+                    LaunchButtonText = "Set the Avvia.bat path in the plugin settings";
                     LaunchButtonEnabled = false;
-                    LaunchButtonTooltip = "Imposta il percorso del file Avvia.bat nelle impostazioni del plugin";
+                    LaunchButtonTooltip = "Set the path to the Agent's Avvia.bat in the plugin settings";
                 }
             }
         }

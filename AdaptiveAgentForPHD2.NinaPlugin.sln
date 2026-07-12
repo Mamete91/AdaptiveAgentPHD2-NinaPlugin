@@ -1,9 +1,13 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AdaptiveAgentForPHD2.NinaPlugin", "src\AdaptiveAgentForPHD2.NinaPlugin\AdaptiveAgentForPHD2.NinaPlugin.csproj", "{58BC0B24-F4AB-461E-AAAA-8ADA5A229B93}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A675B876-DEA6-4E40-93A0-1F87456B9327}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdaptiveAgentForPHD2.NinaPlugin.Tests", "tests\AdaptiveAgentForPHD2.NinaPlugin.Tests\AdaptiveAgentForPHD2.NinaPlugin.Tests.csproj", "{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,8 +19,15 @@ Global
 		{58BC0B24-F4AB-461E-AAAA-8ADA5A229B93}.Debug|x64.Build.0 = Debug|x64
 		{58BC0B24-F4AB-461E-AAAA-8ADA5A229B93}.Release|x64.ActiveCfg = Release|x64
 		{58BC0B24-F4AB-461E-AAAA-8ADA5A229B93}.Release|x64.Build.0 = Release|x64
+		{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45}.Debug|x64.ActiveCfg = Debug|x64
+		{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45}.Debug|x64.Build.0 = Debug|x64
+		{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45}.Release|x64.ActiveCfg = Release|x64
+		{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{035DF84D-EE3F-41C9-B49A-00A8C3DB7E45} = {A675B876-DEA6-4E40-93A0-1F87456B9327}
 	EndGlobalSection
 EndGlobal

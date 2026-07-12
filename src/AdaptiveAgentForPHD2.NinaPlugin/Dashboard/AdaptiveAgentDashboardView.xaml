@@ -63,15 +63,15 @@
                         HorizontalAlignment="Center"
                         MaxWidth="420"
                         Margin="20">
-                <TextBlock Text="Agente non raggiungibile"
+                <TextBlock Text="Agent unreachable"
                            FontSize="16"
                            FontWeight="Bold"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,8" />
                 <TextBlock TextWrapping="Wrap"
                            HorizontalAlignment="Center"
-                           Text="La dashboard dell'Adaptive Agent for PHD2 non risponde su localhost:8080.&#10;Usa il pulsante &quot;Avvia Adaptive Agent&quot; qui sopra (dopo aver impostato il percorso nelle settings), attendi qualche secondo, poi premi Riprova." />
-                <Button Content="Riprova"
+                           Text="The Adaptive Agent for PHD2 dashboard is not responding on localhost:8080.&#10;Use the &quot;Launch Adaptive Agent&quot; button above (after setting the launcher path in the plugin settings), wait a few seconds, then press Retry." />
+                <Button Content="Retry"
                         Padding="20,6"
                         Margin="0,16,0,0"
                         HorizontalAlignment="Center"
@@ -85,6 +85,6 @@
                    FontSize="10"
                    Opacity="0.6"
                    HorizontalAlignment="Center"
-                   Text="Adaptive Agent for PHD2 — Dashboard v1.1  |  by Alessandro Curci  |  Copyright (c) 2026" />
+                   Text="Adaptive Agent for PHD2 — Dashboard v1.5  |  by Alessandro Curci  |  Copyright (c) 2026" />
     </Grid>
 </UserControl>
