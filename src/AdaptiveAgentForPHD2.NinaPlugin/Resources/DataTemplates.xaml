@@ -3,7 +3,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:dash="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Dashboard"
-    xmlns:settings="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Settings">
+    xmlns:settings="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Settings"
+    xmlns:sequencer="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Sequencer">
 
     <!--
         La chiave DEVE seguire il pattern: FullNamespace.ClassName_Dockable
@@ -22,6 +23,26 @@
     -->
     <DataTemplate x:Key="Adaptive Agent for PHD2 — Dashboard_Options">
         <settings:PluginSettingsView DataContext="{Binding Settings}" />
+    </DataTemplate>
+
+    <!--
+        §57-bis — editor inline dell'istruzione RecoveryProbe (DataTemplate per DataType:
+        e' cosi' che NINA risolve la riga dell'istruzione nell'Advanced Sequencer).
+        L'esposizione della sonda replica l'ultimo LIGHT salvato; il fallback vale solo
+        se nessun light e' ancora stato visto in sessione.
+    -->
+    <DataTemplate DataType="{x:Type sequencer:RecoveryProbe}">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock VerticalAlignment="Center" Text="Probe timeout (min)" />
+            <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     Text="{Binding TimeoutMinutes}" />
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="Min interval (min)" />
+            <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     Text="{Binding MinIntervalMinutes}" />
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="Fallback exposure (s)" />
+            <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     Text="{Binding FallbackExposureSeconds}" />
+        </StackPanel>
     </DataTemplate>
 
 </ResourceDictionary>

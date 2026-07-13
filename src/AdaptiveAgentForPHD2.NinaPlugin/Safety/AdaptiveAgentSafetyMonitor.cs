@@ -49,8 +49,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             "(index-based persistence, v1.5), when NINA telemetry goes stale while the sky was degraded, " +
             "or when the Agent becomes unreachable during an active session. Losing reliable observation " +
             "is treated as a risk condition — never as \"safe\".";
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.5.0.0 — virtual Safety Monitor";
-        public string DriverVersion => "1.5.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.6.0.0 — virtual Safety Monitor";
+        public string DriverVersion => "1.6.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
