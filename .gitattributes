@@ -1,0 +1,13 @@
+# Normalizzazione fine-riga: contenuto del repo sempre LF; checkout nativo.
+* text=auto
+
+# File Windows-specifici: CRLF al checkout
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.sln text eol=crlf
+
+# Binari: mai normalizzare
+*.png binary
+*.ico binary
+*.dll binary
