@@ -25,6 +25,8 @@ Usa il pulsante “Avvia Adaptive Agent” qui sopra (dopo aver impostato il per
 
 Dichiara UNSAFE quando: STAR_LOST persiste oltre il timeout configurato; la trasparenza del cielo resta degradata (persistenza sull&#x27;indice); la telemetria NINA diventa stantia con cielo degradato; oppure l&#x27;Agente diventa irraggiungibile durante una sessione attiva. La perdita di osservazione affidabile è sempre trattata come condizione di rischio — mai come &quot;sicura&quot;.
 
+Questo monitor si limita a segnalare SAFE/UNSAFE — il Sequence Engine di N.I.N.A. resta sempre il proprietario della sequenza: i tuoi criteri di fine (ora impostata, alba, altitudine) vincono sempre, e un recupero in corso viene annullato automaticamente nell&#x27;istante in cui la sequenza termina. Qualsiasi costrutto safety-aware può consumare questo stato; la configurazione qui sotto è il workflow di recupero consigliato, non l&#x27;unico.
+
 RECUPERO AUTOMATICO (configurazione consigliata della Sequenza Avanzata):
   Trigger On Unsafe
    └ Before Waiting For Safety

@@ -25,6 +25,8 @@ Use the “Launch Adaptive Agent” button above (after setting the launcher pat
 
 Reports UNSAFE when: STAR_LOST persists beyond the configured timeout; sky transparency stays degraded (index-based persistence); NINA telemetry goes stale while the sky was degraded; or the Agent becomes unreachable during an active session. Losing reliable observation is always treated as a risk condition — never as &quot;safe&quot;.
 
+This monitor only reports SAFE/UNSAFE — N.I.N.A.&#x27;s Sequence Engine always owns the sequence: your end-of-sequence criteria (end time, dawn, altitude) always win, and any running recovery is cancelled automatically the moment the sequence ends. Any safety-aware construct can consume this state; the setup below is the recommended recovery workflow, not the only one.
+
 AUTOMATIC RECOVERY (recommended Advanced Sequencer setup):
   Trigger On Unsafe
    └ Before Waiting For Safety

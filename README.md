@@ -1,6 +1,6 @@
 # Adaptive Agent for PHD2 — Dashboard (N.I.N.A. plugin)
 
-A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session: a dockable dashboard panel, per-exposure telemetry forwarding, a Safety Monitor that reacts to persistent clouds, lost guide stars and loss of observation, a self-contained **Recovery probe** sequencer instruction that resumes the session after clouds, and automatic management of the Agent's lifecycle. UI in English or Italiano.
+A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session. Its centerpiece is a virtual **Safety Monitor** device — N.I.N.A.'s native `ISafetyMonitor` interface, the same role an ASCOM safety monitor plays — providing one continuously evaluated **SAFE/UNSAFE verdict on acquisition quality** (guide star, N1 sky transparency, telemetry freshness, Agent health). **N.I.N.A.'s Sequence Engine always owns the sequence lifecycle**: the monitor reports, it never orchestrates. Around that state the plugin ships the recommended **Recovery probe** workflow to resume the session after clouds, a dockable dashboard panel, per-exposure telemetry forwarding, and automatic Agent lifecycle management. UI in English or Italiano.
 
 The Adaptive Agent itself is a separate, standalone application. This plugin is the bridge between it and N.I.N.A.
 
@@ -40,8 +40,10 @@ A virtual **Safety Monitor** device that N.I.N.A. can use like any other safety 
 
 **Never fails toward safe** (field-validated design, v1.5): losing reliable observation of the sky is itself treated as a risk condition. The return to safe always requires positive evidence (clear sky / stable guiding). The plugin only *reports* the state with its cause; N.I.N.A. decides what to do (pause, park) according to your safety policy. Every numeric threshold has a localized tooltip explaining its exact semantics.
 
+**This device is the plugin's core.** Any safety-aware N.I.N.A. construct can consume its state — the global safety policy, *Wait until safe*, the *Loop while safe / Loop while unsafe* conditions, or your own *Trigger On Unsafe* workflow. The Recovery probe below is the **recommended** consumer for unattended recovery, not the only one.
+
 ### 4. Recovery probe — the session resumes on its own (sequencer instruction)
-The **"Recovery probe (Adaptive Agent)"** instruction turns a clouded-out night into a self-recovering one. Recommended setup (one instruction, no extra containers):
+One workflow built **on top of** the Safety Monitor's state — the recommended one for unattended recovery. The **"Recovery probe (Adaptive Agent)"** instruction turns a clouded-out night into a self-recovering one. Recommended setup (one instruction, no extra containers):
 
 ```
 Trigger On Unsafe
@@ -50,6 +52,8 @@ Trigger On Unsafe
 ```
 
 While conditions are unsafe it takes ONE unguided verification exposure — replicating your last light frame (exposure/gain/offset/binning) — at a configurable cadence (probe timeout, fail-safe) or earlier when the Agent's guide-star SNR hints the sky is recovering, never more often than the minimum interval. The saved probe refreshes the Agent's transparency index — **the probe image is the only path back to safe** — and the loop ends on its own the moment the monitor returns SAFE, letting the sequence resume unattended.
+
+**Design guarantee — the Sequence Engine stays in charge.** The recovery loop runs entirely under N.I.N.A.'s own cancellation scope (triggers execute under the running container's linked cancellation chain — verified in the N.I.N.A. sources): when the sequence ends for any reason — end time reached, sun/moon/altitude limits (condition watchdogs interrupt within seconds), manual stop, N.I.N.A. closing — the probe loop is cancelled immediately, even mid-exposure. The plugin has no sequencer-control API at all, so once a sequence is over, a later return to SAFE changes a device flag and nothing else. The Safety Monitor protects an *active* sequence; it never becomes a second orchestrator of the session.
 
 ### 5. Agent lifecycle (on by default since v1.7)
 The plugin **auto-launches the Agent** when N.I.N.A. starts (once the launcher path is configured) and **shuts it down gracefully** when N.I.N.A. closes — PHD2 baseline restored via the Agent's `POST /shutdown`, whose 200 response is a real contract: the Agent self-terminates via an internal watchdog even if its main loop is stuck, so N.I.N.A. closes instantly. Both behaviors can be disabled in the plugin options; by default the plugin only manages the Agent it launched or any reachable one (configurable).

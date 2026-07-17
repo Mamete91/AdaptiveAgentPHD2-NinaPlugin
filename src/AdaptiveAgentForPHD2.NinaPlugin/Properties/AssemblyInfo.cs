@@ -35,7 +35,8 @@ using System.Runtime.InteropServices;
     "graceful: if the Agent is offline, N.I.N.A. is never disturbed. Provides a virtual Safety " +
     "Monitor that reports unsafe on sustained STAR_LOST, persistent sky-transparency degradation " +
     "(index-based, v1.5), stale telemetry under a degraded sky, or Agent loss during an active " +
-    "session. Adds the self-contained 'Recovery probe (Adaptive Agent)' sequencer instruction " +
+    "session — the monitor only reports: N.I.N.A.'s Sequence Engine always stays in charge of " +
+    "the sequence. Adds the self-contained 'Recovery probe (Adaptive Agent)' sequencer instruction " +
     "(v1.7): placed alone inside Trigger On Unsafe, it loops while conditions are unsafe and " +
     "takes unguided verification exposures replicating the interrupted light — on probe timeout " +
     "(fail-safe) or earlier when the guide-star SNR hints the sky is recovering; the probe image " +
