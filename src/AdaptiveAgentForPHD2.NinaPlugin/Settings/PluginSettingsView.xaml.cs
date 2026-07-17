@@ -1,3 +1,4 @@
+using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using Microsoft.Win32;
 using System;
 using System.IO;
@@ -22,8 +23,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
 
             var dialog = new OpenFileDialog
             {
-                Title = "Seleziona il file Avvia.bat dell'Adaptive Agent",
-                Filter = "Script batch (*.bat)|*.bat|Tutti i file (*.*)|*.*",
+                Title = Loc.T("Settings_Browse_Title"),
+                Filter = Loc.T("Settings_Browse_Filter"),
                 CheckFileExists = true,
             };
 

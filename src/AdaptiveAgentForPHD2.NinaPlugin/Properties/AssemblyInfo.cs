@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.7.0.0")]
+[assembly: AssemblyFileVersion("1.7.0.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -35,7 +35,12 @@ using System.Runtime.InteropServices;
     "graceful: if the Agent is offline, N.I.N.A. is never disturbed. Provides a virtual Safety " +
     "Monitor that reports unsafe on sustained STAR_LOST, persistent sky-transparency degradation " +
     "(index-based, v1.5), stale telemetry under a degraded sky, or Agent loss during an active " +
-    "session. Adds the 'Wait for recovery hint (Adaptive Agent)' sequencer instruction (v1.6): a " +
-    "timing gate for cloud-recovery probe exposures — probes fire on timeout (fail-safe) or earlier " +
-    "when guide-star SNR suggests the sky is recovering; the probe image (N1) remains the only path " +
-    "back to safe. All communication is local (localhost); no external services.")]
+    "session. Adds the self-contained 'Recovery probe (Adaptive Agent)' sequencer instruction " +
+    "(v1.7): placed alone inside Trigger On Unsafe, it loops while conditions are unsafe and " +
+    "takes unguided verification exposures replicating the interrupted light — on probe timeout " +
+    "(fail-safe) or earlier when the guide-star SNR hints the sky is recovering; the probe image " +
+    "(N1) remains the only path back to safe, and the loop ends on its own once the monitor " +
+    "returns SAFE. Owns the Agent lifecycle (v1.7, on by default): auto-launches the Agent when " +
+    "NINA starts and shuts it down gracefully on close (baseline restore via POST /shutdown, " +
+    "process-tree fallback). Plugin UI in English or Italiano (follows N.I.N.A. by default, " +
+    "switchable live). All communication is local (localhost); no external services.")]

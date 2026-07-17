@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:dash="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Dashboard"
     xmlns:settings="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Settings"
-    xmlns:sequencer="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Sequencer">
+    xmlns:sequencer="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Sequencer"
+    xmlns:loc="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Localization">
 
     <!--
         La chiave DEVE seguire il pattern: FullNamespace.ClassName_Dockable
@@ -33,13 +34,13 @@
     -->
     <DataTemplate DataType="{x:Type sequencer:RecoveryProbe}">
         <StackPanel Orientation="Horizontal">
-            <TextBlock VerticalAlignment="Center" Text="Probe timeout (min)" />
+            <TextBlock VerticalAlignment="Center" Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
                      Text="{Binding TimeoutMinutes}" />
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="Min interval (min)" />
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="{Binding [Probe_MinInterval], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
                      Text="{Binding MinIntervalMinutes}" />
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="Fallback exposure (s)" />
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="{Binding [Probe_FallbackExp], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
                      Text="{Binding FallbackExposureSeconds}" />
         </StackPanel>

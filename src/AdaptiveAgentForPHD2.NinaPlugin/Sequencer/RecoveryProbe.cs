@@ -1,4 +1,6 @@
 #nullable enable
+using AdaptiveAgentForPHD2.NinaPlugin.Localization;
+using AdaptiveAgentForPHD2.NinaPlugin.Lifecycle;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
 using Newtonsoft.Json;
 using NINA.Core.Model;
@@ -19,34 +21,36 @@ using System.Threading.Tasks;
 namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 {
     /// <summary>
-    /// §57-bis — "Recovery probe (Adaptive Agent)": l'istruzione AUTOCONTENUTA del
-    /// recovery da UNSAFE-nubi. Attende il gate temporale (S1 timeout / S2 hint, mai
-    /// sotto min-interval) e POI scatta internamente la posa-sonda, replicando il light
-    /// interrotto (esposizione/gain/offset/binning dall'ultimo LIGHT salvato; filtro =
-    /// ruota gia' in posizione, nessun comando). La sonda passa dal pipeline di
-    /// salvataggio standard => ImageSaved => forwarder §42 => N1 fresco => drain §55
-    /// => SAFE, e il Loop While Unsafe del template esce da solo.
+    /// §57-ter — "Recovery probe (Adaptive Agent)": il CICLO AUTONOMO COMPLETO del
+    /// recovery da UNSAFE-nubi, in una sola istruzione. Si mette DIRETTAMENTE dentro
+    /// "Before Waiting For Safety" del Trigger On Unsafe — nessun container, nessuna
+    /// condizione esterna:
     ///
-    /// Nato dal vincolo GUI scoperto in validazione (13/7): i container del Trigger On
-    /// Unsafe rifiutano le istruzioni di categoria Camera => il TakeExposure esterno del
-    /// template v1 non era montabile. Qui l'imaging avviene DENTRO un'istruzione eseguita
-    /// dal sequencer (stesso mecccanismo del TakeExposure core): il principio
-    /// "l'imaging resta al sequencer" e' rispettato.
+    ///   while (monitor UNSAFE e sequenza non annullata):
+    ///       attendi gate (S1 timeout / S2 hint, mai sotto min-interval)
+    ///       scatta UNA posa-sonda (replica del light interrotto)  → forwarder → N1
+    ///   (esce da solo quando il Safety Monitor torna SAFE)
     ///
-    /// Confini (paletti §57 aggiornati al Gate §57-bis):
-    ///  - Nessuna autorita' safety: l'uscita a SAFE resta del Loop While Unsafe
-    ///    (che cancella questa istruzione via CancellationToken, anche a meta' posa).
-    ///  - S2 (hint) puo' solo ANTICIPARE la sonda: agente offline => puro timeout S1.
-    ///  - Nessuna cattura autonoma: si scatta solo quando il sequencer esegue Execute().
+    /// Storia del design (2 vincoli GUI provati sul campo, 13-14/7):
+    ///  1. i container del Trigger On Unsafe RIFIUTANO le istruzioni Camera → la posa
+    ///     e' interna all'istruzione (§57-bis);
+    ///  2. rifiutano anche container/condizioni ("Loop While Unsafe" incluso) → il
+    ///     ciclo e' interno all'istruzione (§57-ter, questa revisione).
+    ///
+    /// Confine di safety INVARIATO: l'istruzione LEGGE lo stato del monitor
+    /// (ISafetyMonitorMediator.GetInfo(), come il WaitUntilSafe core) solo per capire
+    /// QUANDO FERMARSI — non giudica e non imposta mai IsSafe: il ritorno a SAFE passa
+    /// esclusivamente da sonda → N1 fresco → drain §55 → N6. Hint S2: puo' solo
+    /// ANTICIPARE la sonda; agente offline ⇒ puro timeout S1.
     /// </summary>
     [ExportMetadata("Name", "Recovery probe (Adaptive Agent)")]
     [ExportMetadata("Description",
-        "Self-contained cloud-recovery probe. Waits until the probe timeout elapses (S1, fail-safe) or the Adaptive " +
-        "Agent reports a sky-recovery hint from guide-star SNR (S2, accelerator) — never sooner than the minimum " +
-        "interval — then takes ONE unguided LIGHT exposure replicating the interrupted sub (exposure/gain/offset/" +
-        "binning from the last saved light; current filter). The saved probe refreshes the Agent's transparency " +
-        "index, which is the only path back to safe. Place it inside a 'Loop while unsafe' container in the " +
-        "Trigger On Unsafe.")]
+        "Self-contained cloud-recovery loop. Place it directly inside 'Before Waiting For Safety' of the " +
+        "Trigger On Unsafe — no extra containers needed. While the safety monitor reports unsafe, it waits " +
+        "(probe timeout as fail-safe, or earlier when the Adaptive Agent's guide-star SNR hints the sky is " +
+        "recovering — never sooner than the minimum interval) and takes ONE unguided LIGHT verification " +
+        "exposure replicating the interrupted sub. The saved probe refreshes the Agent's transparency index — " +
+        "the only path back to safe. The loop ends on its own the moment the monitor returns SAFE.")]
     [ExportMetadata("Icon", "HourglassSVG")]
     [ExportMetadata("Category", "Adaptive Agent for PHD2")]
     [Export(typeof(ISequenceItem))]
@@ -64,6 +68,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         private readonly IImagingMediator _imagingMediator;
         private readonly IImageSaveMediator _imageSaveMediator;
         private readonly ICameraMediator _cameraMediator;
+        private readonly ISafetyMonitorMediator _safetyMediator;
         private readonly HttpClient _http;
         private readonly PluginSettings _settings;
 
@@ -75,17 +80,20 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         [ImportingConstructor]
         public RecoveryProbe(IImagingMediator imagingMediator,
                              IImageSaveMediator imageSaveMediator,
-                             ICameraMediator cameraMediator)
+                             ICameraMediator cameraMediator,
+                             ISafetyMonitorMediator safetyMonitorMediator)
         {
             _imagingMediator = imagingMediator;
             _imageSaveMediator = imageSaveMediator;
             _cameraMediator = cameraMediator;
+            _safetyMediator = safetyMonitorMediator;
             _settings = AgentServices.Instance.Settings;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         }
 
         private RecoveryProbe(RecoveryProbe cloneMe)
-            : this(cloneMe._imagingMediator, cloneMe._imageSaveMediator, cloneMe._cameraMediator)
+            : this(cloneMe._imagingMediator, cloneMe._imageSaveMediator,
+                   cloneMe._cameraMediator, cloneMe._safetyMediator)
         {
             CopyMetaData(cloneMe);
         }
@@ -136,7 +144,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             var cam = _cameraMediator.GetInfo();
             if (!cam.Connected)
             {
-                issues.Add("Camera not connected — the recovery probe cannot expose");
+                issues.Add(Loc.T("Probe_Issue_Camera"));
+            }
+            var safety = _safetyMediator.GetInfo();
+            if (!safety.Connected)
+            {
+                issues.Add(Loc.T("Probe_Issue_Safety"));
             }
             Issues = issues;
             return issues.Count == 0;
@@ -144,32 +157,101 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 
         public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token)
         {
-            // ---- Fase 1: gate temporale (S1 timeout / S2 hint, floor min-interval) ----
-            var start = DateTimeOffset.UtcNow;
+            // §57-ter — CICLO COMPLETO: (attesa gate → sonda) ripetuto finche' il monitor
+            // e' UNSAFE. Esce quando: SAFE (percorso normale) o cancellazione (sequenza
+            // annullata / chiusura NINA). Lo stato safety viene LETTO ad ogni poll (5 s):
+            // un SAFE che arriva a meta' attesa interrompe subito, come faceva il
+            // watchdog del Loop While Unsafe nel design precedente.
             var timeout = TimeSpan.FromMinutes(TimeoutMinutes);
             var minInterval = TimeSpan.FromMinutes(MinIntervalMinutes);
-            Logger.Info($"RecoveryProbe: waiting (timeout {TimeoutMinutes:0.#} min, min-interval {MinIntervalMinutes:0.#} min)");
+            int probes = 0;
+            bool failureToastShown = false;
+            Logger.Info($"RecoveryProbe: recovery loop started (timeout {TimeoutMinutes:0.#} min, " +
+                        $"min-interval {MinIntervalMinutes:0.#} min)");
 
-            string gateReason;
             while (true)
             {
-                token.ThrowIfCancellationRequested();   // Loop While Unsafe taglia qui al ritorno del SAFE
-
-                var now = DateTimeOffset.UtcNow;
-                bool hint = await ReadHintActiveAsync().ConfigureAwait(false);
-                var (open, reason) = RecoveryProbeGate.Evaluate(
-                    now - start, now - _lastGateOpenUtc, hint, timeout, minInterval);
-                if (open)
+                token.ThrowIfCancellationRequested();
+                if (IsSafeNow())
                 {
-                    _lastGateOpenUtc = now;
-                    gateReason = reason;
-                    break;
+                    Logger.Info($"RecoveryProbe: safety monitor reports SAFE — recovery loop ends ({probes} probe(s) attempted)");
+                    return;
                 }
-                progress?.Report(new ApplicationStatus { Status = $"Recovery probe: {reason}" });
-                await Task.Delay(PollInterval, token).ConfigureAwait(false);
-            }
 
-            // ---- Fase 2: posa-sonda (replica del light interrotto) ----
+                // ---- Fase 1: gate temporale (S1 timeout / S2 hint, floor min-interval) ----
+                var start = DateTimeOffset.UtcNow;
+                string gateReason;
+                while (true)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (IsSafeNow())
+                    {
+                        Logger.Info($"RecoveryProbe: SAFE returned while waiting — recovery loop ends ({probes} probe(s) attempted)");
+                        return;
+                    }
+                    var now = DateTimeOffset.UtcNow;
+                    bool hint = await ReadHintActiveAsync().ConfigureAwait(false);
+                    var (open, reason) = RecoveryProbeGate.Evaluate(
+                        now - start, now - _lastGateOpenUtc, hint, timeout, minInterval);
+                    if (open)
+                    {
+                        _lastGateOpenUtc = now;
+                        gateReason = reason;
+                        break;
+                    }
+                    progress?.Report(new ApplicationStatus { Status = $"Recovery probe: {reason}" });
+                    await Task.Delay(PollInterval, token).ConfigureAwait(false);
+                }
+
+                // ---- Fase 2: posa-sonda (replica del light interrotto) ----
+                // §57-ter hardening: un guasto di cattura (camera/USB/driver) NON deve
+                // terminare il ciclo — terminava l'intero recovery e riapriva l'attesa
+                // muta proprio nello scenario peggiore. Si logga, si avvisa (toast solo al
+                // PRIMO fallimento: niente spam ogni gate con una camera morta) e si
+                // riprova al prossimo gate. La CANCELLAZIONE resta prioritaria e propaga.
+                probes++;
+                try
+                {
+                    await TakeProbeAsync(gateReason, probes, progress, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;   // sequenza annullata / chiusura NINA: il loop DEVE fermarsi
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"RecoveryProbe: probe #{probes} FAILED ({ex.Message}) — " +
+                                   "recovery loop continues, next attempt at the next gate");
+                    if (!failureToastShown)
+                    {
+                        failureToastShown = true;
+                        ToastHelper.Show(() => NINA.Core.Utility.Notification.Notification.ShowWarning(
+                            string.Format(Loc.T("Toast_ProbeFailed"), ex.Message)));
+                    }
+                }
+                // Il forwarder POSTa la sonda a N1; il drain §55 impiega ~1 min a riportare
+                // SAFE se il cielo e' davvero tornato: il prossimo giro di attesa (gated dal
+                // min-interval) legge lo stato e esce.
+            }
+        }
+
+        /// <summary>Lettura (mai scrittura) dello stato del Safety Monitor — come il WaitUntilSafe core.</summary>
+        private bool IsSafeNow()
+        {
+            try
+            {
+                var info = _safetyMediator.GetInfo();
+                return info.Connected && info.IsSafe;
+            }
+            catch
+            {
+                return false;   // stato ignoto => continua il recovery (conservativo)
+            }
+        }
+
+        private async Task TakeProbeAsync(string gateReason, int probeNumber,
+                                          IProgress<ApplicationStatus>? progress, CancellationToken token)
+        {
             var profile = LastLightMemory.Current;
             double exposure = profile?.ExposureSeconds ?? FallbackExposureSeconds;
             var capture = new CaptureSequence
@@ -187,19 +269,18 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             // NB: nessun FilterType => nessun comando alla ruota (il filtro del sub e' gia' in posizione).
 
             // Telemetria paletto 8 (lato plugin): trigger + parametri della sonda.
-            Logger.Info($"RecoveryProbe: gate OPEN — {gateReason} (waited {(DateTimeOffset.UtcNow - start).TotalMinutes:0.0} min) " +
-                        $"-> probing {exposure:0.#}s LIGHT " +
+            Logger.Info($"RecoveryProbe: gate OPEN — {gateReason} -> probe #{probeNumber}: {exposure:0.#}s LIGHT " +
                         (profile != null
                             ? $"(replica of last light: gain={profile.Gain} offset={profile.Offset} bin={profile.BinX}x{profile.BinY} filter={profile.Filter ?? "-"})"
                             : "(no light seen this session: fallback exposure)"));
 
-            progress?.Report(new ApplicationStatus { Status = $"Recovery probe: exposing {exposure:0.#}s..." });
+            progress?.Report(new ApplicationStatus { Status = $"Recovery probe #{probeNumber}: exposing {exposure:0.#}s..." });
             var exposureData = await _imagingMediator.CaptureImage(capture, token, progress).ConfigureAwait(false);
             var imageData = await exposureData.ToImageData(progress, token).ConfigureAwait(false);
             var prepareTask = _imagingMediator.PrepareImage(imageData, new PrepareImageParameters(null, true), token);
             // Salvataggio via pipeline standard => ImageSaved => forwarder §42 => N1 fresco.
             await _imageSaveMediator.Enqueue(imageData, prepareTask, progress, token).ConfigureAwait(false);
-            Logger.Info("RecoveryProbe: probe saved — the Agent's transparency index will refresh on ingest");
+            Logger.Info($"RecoveryProbe: probe #{probeNumber} saved — the Agent's transparency index will refresh on ingest");
         }
 
         /// <summary>GET /status → recovery_hint.active. Graceful: qualunque errore => false (puro S1).</summary>
@@ -225,6 +306,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 
         public override TimeSpan GetEstimatedDuration()
         {
+            // Durata reale = finche' torna SAFE (non prevedibile): stima di UN giro.
             var exposure = LastLightMemory.Current?.ExposureSeconds ?? FallbackExposureSeconds;
             return TimeSpan.FromMinutes(TimeoutMinutes) + TimeSpan.FromSeconds(exposure);
         }

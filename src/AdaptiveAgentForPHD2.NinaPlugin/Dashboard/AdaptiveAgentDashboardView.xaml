@@ -2,6 +2,7 @@
     x:Class="AdaptiveAgentForPHD2.NinaPlugin.Dashboard.AdaptiveAgentDashboardView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:loc="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Localization"
     xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
     Background="{DynamicResource BackgroundBrush}">
 
@@ -36,7 +37,7 @@
         <!-- HEADER (v1.0) -->
         <DockPanel Grid.Row="1" Margin="8,2,8,6">
             <Button DockPanel.Dock="Right"
-                    Content="Reload"
+                    Content="{Binding [Dash_Reload], Source={x:Static loc:Loc.Instance}}"
                     Padding="10,3"
                     Click="OnReloadClick" />
             <StackPanel>
@@ -63,15 +64,15 @@
                         HorizontalAlignment="Center"
                         MaxWidth="420"
                         Margin="20">
-                <TextBlock Text="Agent unreachable"
+                <TextBlock Text="{Binding [Dash_Unreachable_Title], Source={x:Static loc:Loc.Instance}}"
                            FontSize="16"
                            FontWeight="Bold"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,8" />
                 <TextBlock TextWrapping="Wrap"
                            HorizontalAlignment="Center"
-                           Text="The Adaptive Agent for PHD2 dashboard is not responding on localhost:8080.&#10;Use the &quot;Launch Adaptive Agent&quot; button above (after setting the launcher path in the plugin settings), wait a few seconds, then press Retry." />
-                <Button Content="Retry"
+                           Text="{Binding [Dash_Unreachable_Body], Source={x:Static loc:Loc.Instance}}" />
+                <Button Content="{Binding [Dash_Retry], Source={x:Static loc:Loc.Instance}}"
                         Padding="20,6"
                         Margin="0,16,0,0"
                         HorizontalAlignment="Center"
@@ -85,6 +86,6 @@
                    FontSize="10"
                    Opacity="0.6"
                    HorizontalAlignment="Center"
-                   Text="Adaptive Agent for PHD2 — Dashboard v1.5  |  by Alessandro Curci  |  Copyright (c) 2026" />
+                   Text="{Binding FooterText}" />
     </Grid>
 </UserControl>

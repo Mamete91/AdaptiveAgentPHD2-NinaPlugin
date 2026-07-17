@@ -41,7 +41,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
             }
             catch (Exception ex)
             {
-                ShowFallback($"Errore inizializzazione WebView2: {ex.Message}");
+                ShowFallback($"WebView2 initialization error: {ex.Message}");
             }
 
             // v1.2.1: il poller (badge) e il WebView avevano due meccanismi indipendenti per capire

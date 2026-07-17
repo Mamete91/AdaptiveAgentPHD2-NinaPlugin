@@ -1,5 +1,6 @@
 #nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
+using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
@@ -43,14 +44,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // --- Identita' del driver (vedi pre-flight: stesse convenzioni del SafetyMonitorSimulator di NINA) ---
         public string Name => "Adaptive Agent for PHD2 — Guide Safety";
         public string DisplayName => Name;
-        public string Description =>
-            "Reflects the guiding and sky state of the Adaptive Agent for PHD2. Reports unsafe when " +
-            "STAR_LOST persists beyond the configured timeout, when sky transparency stays degraded " +
-            "(index-based persistence, v1.5), when NINA telemetry goes stale while the sky was degraded, " +
-            "or when the Agent becomes unreachable during an active session. Losing reliable observation " +
-            "is treated as a risk condition — never as \"safe\".";
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.6.0.0 — virtual Safety Monitor";
-        public string DriverVersion => "1.6.0.0";
+        // §58-ter — descrizione = manuale d'uso in miniatura: COSA fa + COME si monta la
+        // sequenza per il recovery automatico (§57-bis). E' una string del contratto
+        // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
+        // ma \n e caratteri unicode di albero sono supportati.
+        public string Description => Loc.T("Monitor_Description");
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.7.0.0 — virtual Safety Monitor";
+        public string DriverVersion => "1.7.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -168,7 +168,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             {
                 Logger.Info("Adaptive Agent Safety Monitor: Agent unreachable — holding connection, agent-lost watchdog armed");
                 ShowToast(() => Notification.ShowWarning(
-                    "Adaptive Agent: Agent unreachable — Safety Monitor is watching (unsafe if it persists during an active session)"));
+                    Loc.T("Toast_AgentUnreachable")));
             }
             else
             {
@@ -191,24 +191,24 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                         case SafetyCause.Cloud:
                             Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — persistent transparency degradation (clouds)");
                             ShowToast(() => Notification.ShowWarning(
-                                "Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe"));
+                                Loc.T("Toast_CloudsUnsafe")));
                             break;
                         case SafetyCause.StaleTelemetry:
                             Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — NINA telemetry stale for {_settings.StaleUnsafePolls} polls while last known sky was degraded");
                             ShowToast(() => Notification.ShowWarning(
-                                "Adaptive Agent: telemetry went stale while the sky was degraded — Safety Monitor unsafe"));
+                                Loc.T("Toast_StaleUnsafe")));
                             break;
                         case SafetyCause.AgentLost:
                             Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — Adaptive Agent unreachable for {_settings.AgentLostUnsafePolls} polls during an active session");
                             ShowToast(() => Notification.ShowWarning(
-                                "Adaptive Agent: Agent unreachable during an active session — Safety Monitor unsafe"));
+                                Loc.T("Toast_AgentLostUnsafe")));
                             break;
                         default:
                             var secs = _settings.StarLostConsolidationSeconds;
-                            var dur = secs >= 60 ? $"{secs / 60} minutes" : $"{secs}s";
+                            var dur = secs >= 60 ? string.Format(Loc.T("Unit_Minutes"), secs / 60) : $"{secs}s";
                             Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — STAR_LOST sustained for {dur}");
                             ShowToast(() => Notification.ShowWarning(
-                                $"Adaptive Agent: guiding lost for {dur} — Safety Monitor unsafe"));
+                                string.Format(Loc.T("Toast_StarLostUnsafe"), dur)));
                             break;
                     }
                     break;
@@ -217,7 +217,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     IsSafe = true;
                     Logger.Info("Adaptive Agent Safety Monitor: SAFE — conditions recovered");
                     ShowToast(() => Notification.ShowInformation(
-                        "Adaptive Agent: conditions recovered — Safety Monitor safe"));
+                        Loc.T("Toast_RecoveredSafe")));
                     break;
 
                 case SafetyDecision.NoChange:

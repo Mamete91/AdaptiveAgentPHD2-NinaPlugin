@@ -1,4 +1,5 @@
 #nullable enable
+using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
 using AdaptiveAgentForPHD2.NinaPlugin.Launch;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
@@ -20,7 +21,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
     public class AdaptiveAgentDashboardVM : DockableVM
     {
         public const string DefaultDashboardUrl = PluginSettings.DefaultDashboardUrl;
-        private const string LaunchLabel = "Launch Adaptive Agent";
+        private static string LaunchLabel => Loc.T("Dash_Launch");
+
+        // §60 — versione del footer letta dall'assembly: il vecchio literal XAML era
+        // rimasto fermo a "v1.5". Identità/brand: resta in inglese by design.
+        public string FooterText { get; } =
+            "Adaptive Agent for PHD2 — Dashboard v"
+            + (typeof(AdaptiveAgentDashboardVM).Assembly.GetName().Version?.ToString() ?? "?")
+            + "  |  by Alessandro Curci  |  Copyright (c) 2026";
 
         // Brush frozen => sicuri da usare cross-thread (il poller gira sul thread del timer).
         private static readonly Brush OnlineBrush = Frozen(Color.FromRgb(0x2E, 0x7D, 0x32));
@@ -30,7 +38,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
         private readonly AgentLauncher _launcher;
         private readonly AgentHealthChecker _health;
 
-        private string _statusBadgeText = "Agent offline";
+        private string _statusBadgeText = Loc.T("Dash_AgentOffline");
         private Brush _statusBadgeBackground = OfflineBrush;
         private string _launchButtonText = LaunchLabel;
         private bool _launchButtonEnabled;
@@ -139,28 +147,28 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Dashboard
             if (health.IsOnline)
             {
                 StatusBadgeText = string.IsNullOrEmpty(health.Version)
-                    ? "Agent online"
-                    : $"Agent online v{health.Version}";
+                    ? Loc.T("Dash_AgentOnline")
+                    : string.Format(Loc.T("Dash_AgentOnlineV"), health.Version);
                 StatusBadgeBackground = OnlineBrush;
                 LaunchButtonText = LaunchLabel;
                 LaunchButtonEnabled = false;
-                LaunchButtonTooltip = "Agent already running";
+                LaunchButtonTooltip = Loc.T("Dash_Tip_Running");
             }
             else
             {
-                StatusBadgeText = "Agent offline";
+                StatusBadgeText = Loc.T("Dash_AgentOffline");
                 StatusBadgeBackground = OfflineBrush;
                 if (configured)
                 {
                     LaunchButtonText = LaunchLabel;
                     LaunchButtonEnabled = true;
-                    LaunchButtonTooltip = "Start the Agent's Avvia.bat process";
+                    LaunchButtonTooltip = Loc.T("Dash_Tip_Start");
                 }
                 else
                 {
-                    LaunchButtonText = "Set the Avvia.bat path in the plugin settings";
+                    LaunchButtonText = Loc.T("Dash_SetPath");
                     LaunchButtonEnabled = false;
-                    LaunchButtonTooltip = "Set the path to the Agent's Avvia.bat in the plugin settings";
+                    LaunchButtonTooltip = Loc.T("Dash_Tip_SetPath");
                 }
             }
         }

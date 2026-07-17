@@ -1,4 +1,5 @@
 #nullable enable
+using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Safety;
 using NINA.Core.Utility;
 using System;
@@ -46,6 +47,17 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         public const int DefaultAgentLostUnsafePolls = 4;  // ~1 min: perdere l'osservazione e' peggio
         public const int MinAgentLostUnsafePolls = 1;
         public const int MaxAgentLostUnsafePolls = 60;
+        // §58 — auto-gestione del ciclo di vita dell'Agente dal plugin.
+        // §60 — default ribaltati a ON ("installa e funziona"): col ciclo di vita ormai
+        // maturo (§56 orphan recovery, §58 graceful shutdown, §59 watchdog di
+        // auto-terminazione) l'opt-in non proteggeva piu' nulla e faceva sembrare il
+        // plugin inerte alla prima installazione. Restano i kill-switch in opzioni;
+        // upgrade-safe: un false salvato esplicitamente resta false (DTO nullable).
+        // AutoLaunch e' comunque inerte finche' il path del launcher non e' configurato.
+        public const bool DefaultAutoLaunchEnabled = true;
+        public const bool DefaultManageExternalAgent = true;
+        // §60 — lingua del SOLO plugin: "" = Follow N.I.N.A., "en", "it".
+        public const string DefaultPluginLanguage = "";
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -66,6 +78,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private int _staleUnsafePolls = DefaultStaleUnsafePolls;
         private bool _agentLostUnsafeEnabled = DefaultAgentLostUnsafeEnabled;
         private int _agentLostUnsafePolls = DefaultAgentLostUnsafePolls;
+        private bool _autoLaunchEnabled = DefaultAutoLaunchEnabled;
+        private bool _manageExternalAgent = DefaultManageExternalAgent;
+        private string _pluginLanguage = DefaultPluginLanguage;
         private bool _suppressSave;
 
         /// <summary>Sollevato quando l'intervallo di polling cambia, così il poller riarma il timer.</summary>
@@ -298,6 +313,62 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
         }
 
+        /// <summary>
+        /// §58 — all'avvio del plugin: se true, path configurato e Agente non gia'
+        /// raggiungibile, il plugin lo avvia da solo. Default true (§60); inerte
+        /// finche' il percorso del launcher non e' configurato.
+        /// </summary>
+        public bool AutoLaunchEnabled
+        {
+            get => _autoLaunchEnabled;
+            set
+            {
+                if (_autoLaunchEnabled == value) { return; }
+                _autoLaunchEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>
+        /// §58 — politica B: alla chiusura di NINA spegni (graceful) anche un Agente
+        /// NON avviato dal plugin. Default true (§60): l'Agente esiste per servire
+        /// NINA — chi lo usa standalone e vuole che sopravviva la disattiva. NB: su un
+        /// agente esterno non c'e' handle di processo per il fallback kill — se e'
+        /// piantato resta solo il §56 al riavvio.
+        /// </summary>
+        public bool ManageExternalAgent
+        {
+            get => _manageExternalAgent;
+            set
+            {
+                if (_manageExternalAgent == value) { return; }
+                _manageExternalAgent = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+
+        /// <summary>
+        /// §60 — lingua dell'interfaccia del plugin ("" = segue N.I.N.A.). Aggiorna la
+        /// UI live via Loc (indexer bindabile); non tocca mai la cultura di N.I.N.A.
+        /// </summary>
+        public string PluginLanguage
+        {
+            get => _pluginLanguage;
+            set
+            {
+                var v = (value ?? "").Trim().ToLowerInvariant();
+                if (v != "" && v != "en" && v != "it") { v = DefaultPluginLanguage; }
+                if (_pluginLanguage == v) { return; }
+                _pluginLanguage = v;
+                Loc.Instance.SetLanguage(v);
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
         public static PluginSettings Load()
         {
             var settings = new PluginSettings();
@@ -346,6 +417,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         settings.AgentLostUnsafePolls =
                             (dto.AgentLostUnsafePolls == null || dto.AgentLostUnsafePolls == 0)
                                 ? DefaultAgentLostUnsafePolls : dto.AgentLostUnsafePolls.Value;
+                        // §58 — chiavi assenti (upgrade <v1.7) => default (§60: lifecycle ON);
+                        // un false salvato esplicitamente resta false.
+                        settings.AutoLaunchEnabled = dto.AutoLaunchEnabled ?? DefaultAutoLaunchEnabled;
+                        settings.ManageExternalAgent = dto.ManageExternalAgent ?? DefaultManageExternalAgent;
+                        settings.PluginLanguage = dto.PluginLanguage ?? DefaultPluginLanguage;
                         settings._suppressSave = false;
                     }
                 }
@@ -380,6 +456,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     StaleUnsafePolls = _staleUnsafePolls,
                     AgentLostUnsafeEnabled = _agentLostUnsafeEnabled,
                     AgentLostUnsafePolls = _agentLostUnsafePolls,
+                    AutoLaunchEnabled = _autoLaunchEnabled,
+                    ManageExternalAgent = _manageExternalAgent,
+                    PluginLanguage = _pluginLanguage,
                 };
                 File.WriteAllText(SettingsPath,
                     JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
@@ -410,6 +489,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public int? StaleUnsafePolls { get; set; }
             public bool? AgentLostUnsafeEnabled { get; set; }
             public int? AgentLostUnsafePolls { get; set; }
+            // §58 — nullable per upgrade-safety (chiave assente da <v1.7 => default).
+            public bool? AutoLaunchEnabled { get; set; }
+            public bool? ManageExternalAgent { get; set; }
+            public string? PluginLanguage { get; set; }
         }
     }
 }

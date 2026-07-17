@@ -17,8 +17,8 @@
     <!-- CA1416: WebView2 e' Windows-only — falso positivo per questo plugin WPF -->
     <NoWarn>NU1701;CA1416</NoWarn>
     <Authors>Alessandro Curci</Authors>
-    <Version>1.6.0.0</Version>
-    <FileVersion>1.6.0.0</FileVersion>
+    <Version>1.7.0.0</Version>
+    <FileVersion>1.7.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

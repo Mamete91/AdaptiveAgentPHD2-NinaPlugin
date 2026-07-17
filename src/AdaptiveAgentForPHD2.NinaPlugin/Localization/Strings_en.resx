@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Dash_AgentOffline" xml:space="preserve"><value>Agent offline</value></data>
+  <data name="Dash_AgentOnline" xml:space="preserve"><value>Agent online</value></data>
+  <data name="Dash_AgentOnlineV" xml:space="preserve"><value>Agent online v{0}</value></data>
+  <data name="Dash_Launch" xml:space="preserve"><value>Launch Adaptive Agent</value></data>
+  <data name="Dash_Reload" xml:space="preserve"><value>Reload</value></data>
+  <data name="Dash_Retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="Dash_SetPath" xml:space="preserve"><value>Set the Avvia.bat path in the plugin settings</value></data>
+  <data name="Dash_Tip_Running" xml:space="preserve"><value>Agent already running</value></data>
+  <data name="Dash_Tip_SetPath" xml:space="preserve"><value>Set the path to the Agent&#x27;s Avvia.bat in the plugin settings</value></data>
+  <data name="Dash_Tip_Start" xml:space="preserve"><value>Start the Agent&#x27;s Avvia.bat process</value></data>
+  <data name="Dash_Unreachable_Body" xml:space="preserve"><value>The Adaptive Agent for PHD2 dashboard is not responding on localhost:8080.
+Use the “Launch Adaptive Agent” button above (after setting the launcher path in the plugin settings), wait a few seconds, then press Retry.</value></data>
+  <data name="Dash_Unreachable_Title" xml:space="preserve"><value>Agent unreachable</value></data>
+  <data name="Launch_Error" xml:space="preserve"><value>Launch failed: {0}</value></data>
+  <data name="Launch_FileNotFound" xml:space="preserve"><value>The Avvia.bat file configured in the settings does not exist. Check the path.</value></data>
+  <data name="Launch_NotConfigured" xml:space="preserve"><value>Path to Avvia.bat is not set. Configure it in the plugin settings.</value></data>
+  <data name="Launch_Started" xml:space="preserve"><value>Process started. The Agent will be ready in a few seconds.</value></data>
+  <data name="Monitor_Description" xml:space="preserve"><value>Continuously watches the Adaptive Agent&#x27;s guiding reliability and sky conditions.
+
+Reports UNSAFE when: STAR_LOST persists beyond the configured timeout; sky transparency stays degraded (index-based persistence); NINA telemetry goes stale while the sky was degraded; or the Agent becomes unreachable during an active session. Losing reliable observation is always treated as a risk condition — never as &quot;safe&quot;.
+
+AUTOMATIC RECOVERY (recommended Advanced Sequencer setup):
+  Trigger On Unsafe
+   └ Before Waiting For Safety
+      └ Recovery probe (Adaptive Agent)
+
+That single instruction is the complete recovery loop: while conditions are unsafe it automatically takes verification exposures (replicating your last light) at the configured cadence — or sooner when the Agent&#x27;s guide-star SNR hints the sky is recovering — and it ends on its own the moment this monitor returns SAFE, letting the sequence resume. No extra containers, loops or Camera instructions are needed (NINA rejects them inside the trigger anyway).</value></data>
+  <data name="Probe_FallbackExp" xml:space="preserve"><value>Fallback exposure (s)</value></data>
+  <data name="Probe_Issue_Camera" xml:space="preserve"><value>Camera not connected — the recovery probe cannot expose</value></data>
+  <data name="Probe_Issue_Safety" xml:space="preserve"><value>Safety monitor not connected — the recovery loop cannot know when conditions are safe again</value></data>
+  <data name="Probe_MinInterval" xml:space="preserve"><value>Min interval (min)</value></data>
+  <data name="Probe_Timeout" xml:space="preserve"><value>Probe timeout (min)</value></data>
+  <data name="Settings_AccumBelow" xml:space="preserve"><value>Accumulate below index:</value></data>
+  <data name="Settings_AgentLostPolls" xml:space="preserve"><value>Agent lost → unsafe (polls):</value></data>
+  <data name="Settings_AgentLost_Check" xml:space="preserve"><value>Report unsafe if the Agent becomes unreachable during an active session</value></data>
+  <data name="Settings_AgentLost_Help" xml:space="preserve"><value>Losing the Agent means losing observation of both sky and guiding — a risk condition. The monitor stays connected and escalates to unsafe with its own hysteresis (it never flips to safe by disconnecting). With guiding intentionally stopped, an offline Agent raises no alarm.</value></data>
+  <data name="Settings_AutoLaunch_Check" xml:space="preserve"><value>Auto-launch the Agent when NINA starts</value></data>
+  <data name="Settings_AutoLaunch_Help" xml:space="preserve"><value>If the launcher path above is set and no Agent is already running, the plugin starts it automatically (and shuts it down gracefully when NINA closes, restoring the PHD2 baseline). The manual Launch button remains as fallback.</value></data>
+  <data name="Settings_BatPath_Help" xml:space="preserve"><value>Used by the “Launch Adaptive Agent” button in the dockable panel.</value></data>
+  <data name="Settings_BatPath_Label" xml:space="preserve"><value>Path to the Agent launcher (Avvia.bat)</value></data>
+  <data name="Settings_Browse" xml:space="preserve"><value>Browse...</value></data>
+  <data name="Settings_Browse_Filter" xml:space="preserve"><value>Batch script (*.bat)|*.bat|All files (*.*)|*.*</value></data>
+  <data name="Settings_Browse_Title" xml:space="preserve"><value>Select the Adaptive Agent&#x27;s Avvia.bat launcher</value></data>
+  <data name="Settings_ClearPolls" xml:space="preserve"><value>Clear → safe (polls):</value></data>
+  <data name="Settings_Cloud_Check" xml:space="preserve"><value>Cloud safety enabled</value></data>
+  <data name="Settings_Cloud_Help" xml:space="preserve"><value>When enabled, the Safety Monitor reports unsafe (alongside STAR_LOST) when sky transparency stays degraded — so NINA can pause the imaging run before the guide star is lost. Requires telemetry forwarding and the Agent running.</value></data>
+  <data name="Settings_Cloud_Label" xml:space="preserve"><value>Safety Monitor — cloud safety (NINA transparency)</value></data>
+  <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Change only if you changed the Agent&#x27;s port. Default: http://localhost:8080</value></data>
+  <data name="Settings_DashUrl_Label" xml:space="preserve"><value>Agent dashboard URL</value></data>
+  <data name="Settings_DegradedPolls" xml:space="preserve"><value>Degraded → unsafe (polls):</value></data>
+  <data name="Settings_DrainAbove" xml:space="preserve"><value>Drain above index:</value></data>
+  <data name="Settings_Index_Check" xml:space="preserve"><value>Use transparency index persistence (recommended)</value></data>
+  <data name="Settings_Index_Help" xml:space="preserve"><value>Accumulates degradation while the transparency index is low and drains it while the sky is clear; brief HAZE bounces no longer reset the cloud timer. Unchecked = legacy logic (consecutive CLOUD polls on the discrete state).</value></data>
+  <data name="Settings_Interval_Help" xml:space="preserve"><value>How often the plugin checks whether the Agent responds. Allowed range: 5–120.</value></data>
+  <data name="Settings_Interval_Label" xml:space="preserve"><value>Agent status polling interval (seconds)</value></data>
+  <data name="Settings_Language_Follow" xml:space="preserve"><value>Follow N.I.N.A.</value></data>
+  <data name="Settings_Language_Help" xml:space="preserve"><value>Applies only to this plugin&#x27;s interface. N.I.N.A. keeps its own language. Logs always stay in English (for support).</value></data>
+  <data name="Settings_Language_Label" xml:space="preserve"><value>Plugin language</value></data>
+  <data name="Settings_Lifecycle_Label" xml:space="preserve"><value>Agent lifecycle</value></data>
+  <data name="Settings_ManageExt_Check" xml:space="preserve"><value>Also manage an Agent not started by the plugin</value></data>
+  <data name="Settings_ManageExt_Help" xml:space="preserve"><value>On (default): when NINA closes, the plugin gracefully shuts down any reachable Agent — even one it did not start — so the PHD2 baseline is always restored. Turn it off if you run the Agent standalone and want it to outlive NINA. Note: for an external Agent there is no process handle — if it hangs, only the Agent&#x27;s own orphan recovery cleans up at next start.</value></data>
+  <data name="Settings_Recovery_Body" xml:space="preserve"><value>That single instruction is the complete recovery loop: while conditions are unsafe it takes verification exposures at the configured cadence (or sooner on the guide-SNR hint) and ends on its own when the Safety Monitor returns SAFE — imaging then resumes automatically. No extra containers or Camera instructions are needed.</value></data>
+  <data name="Settings_Recovery_Intro" xml:space="preserve"><value>To let the session resume by itself after clouds, add ONE instruction to your Advanced Sequence:</value></data>
+  <data name="Settings_Recovery_Title" xml:space="preserve"><value>Automatic cloud recovery — sequence setup</value></data>
+  <data name="Settings_SavedAuto" xml:space="preserve"><value>Settings are saved automatically.</value></data>
+  <data name="Settings_StalePolls" xml:space="preserve"><value>Stale → unsafe (polls):</value></data>
+  <data name="Settings_Stale_Check" xml:space="preserve"><value>Report unsafe on stale telemetry under a degraded sky</value></data>
+  <data name="Settings_Stale_Help" xml:space="preserve"><value>If NINA telemetry stops arriving (beyond the adaptive freshness window — the normal gap between exposures does NOT trigger this) while the session is active and the last known sky was degraded, the Safety Monitor escalates to unsafe instead of silently disabling cloud safety.</value></data>
+  <data name="Settings_StarLost_Help" xml:space="preserve"><value>How long STAR_LOST must persist before the Safety Monitor reports unsafe. Default 5 minutes (300). Allowed range: 30–1800. Higher values reduce false positives at the cost of slower detection; lower values risk triggering on transient STAR_LOST events the Agent would have recovered.</value></data>
+  <data name="Settings_StarLost_Label" xml:space="preserve"><value>Safety Monitor — STAR_LOST consolidation (seconds)</value></data>
+  <data name="Settings_Telemetry_Check" xml:space="preserve"><value>Telemetry forwarding enabled</value></data>
+  <data name="Settings_Telemetry_Help" xml:space="preserve"><value>On every saved exposure, sends HFR, star count and image statistics to the Agent (HTTP POST). Optional: if the Agent is offline nothing happens and NINA is never disturbed. Disable to send no data.</value></data>
+  <data name="Settings_Telemetry_Label" xml:space="preserve"><value>Forward NINA per-exposure metrics to the Agent</value></data>
+  <data name="Settings_Tip_AccumBelow" xml:space="preserve"><value>While the transparency index (0–1) is below this value, degradation accumulates. Higher = more sensitive to veils. Default matches the Agent&#x27;s CLOUD threshold (0.5).</value></data>
+  <data name="Settings_Tip_AgentLostPolls" xml:space="preserve"><value>Polls with the Agent unreachable before declaring UNSAFE. Escalates only during an active session — with guiding intentionally stopped, an offline Agent raises no alarm.</value></data>
+  <data name="Settings_Tip_ClearPolls" xml:space="preserve"><value>Polls of clear sky needed to fully drain a saturated accumulator and clear the cloud UNSAFE. Higher = slower, more cautious return to safe.</value></data>
+  <data name="Settings_Tip_DegradedPolls" xml:space="preserve"><value>Accumulated polls of degraded sky before declaring UNSAFE: clear sky drains the count, HAZE is neutral (no reset). Higher = more tolerant of brief veils. 1 poll = the polling interval (default 15 s).</value></data>
+  <data name="Settings_Tip_DrainAbove" xml:space="preserve"><value>While the index is at or above this value, accumulated degradation drains; between the two thresholds (HAZE) nothing changes. Lower = faster recovery to safe.</value></data>
+  <data name="Settings_Tip_StalePolls" xml:space="preserve"><value>Polls with stale telemetry (beyond the adaptive freshness window — the normal gap between exposures never counts) before UNSAFE. Escalates only with cloud safety on, an active session and the last known sky degraded.</value></data>
+  <data name="Settings_Title" xml:space="preserve"><value>Adaptive Agent for PHD2 — Settings</value></data>
+  <data name="Toast_AgentLostUnsafe" xml:space="preserve"><value>Adaptive Agent: Agent unreachable during an active session — Safety Monitor unsafe</value></data>
+  <data name="Toast_AgentUnreachable" xml:space="preserve"><value>Adaptive Agent: Agent unreachable — Safety Monitor is watching (unsafe if it persists during an active session)</value></data>
+  <data name="Toast_AutoLaunchError" xml:space="preserve"><value>Adaptive Agent auto-launch error: {0}</value></data>
+  <data name="Toast_AutoLaunchFailed" xml:space="preserve"><value>Adaptive Agent auto-launch failed: {0}</value></data>
+  <data name="Toast_CloudsUnsafe" xml:space="preserve"><value>Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe</value></data>
+  <data name="Toast_ProbeFailed" xml:space="preserve"><value>Adaptive Agent: recovery probe failed ({0}) — will keep retrying while unsafe</value></data>
+  <data name="Toast_RecoveredSafe" xml:space="preserve"><value>Adaptive Agent: conditions recovered — Safety Monitor safe</value></data>
+  <data name="Toast_StaleUnsafe" xml:space="preserve"><value>Adaptive Agent: telemetry went stale while the sky was degraded — Safety Monitor unsafe</value></data>
+  <data name="Toast_StarLostUnsafe" xml:space="preserve"><value>Adaptive Agent: guiding lost for {0} — Safety Monitor unsafe</value></data>
+  <data name="Unit_Minutes" xml:space="preserve"><value>{0} minutes</value></data>
+</root>

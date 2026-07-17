@@ -1,6 +1,6 @@
 # Adaptive Agent for PHD2 — Dashboard (N.I.N.A. plugin)
 
-A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session: a dockable dashboard panel, per-exposure telemetry forwarding, and a Safety Monitor that reacts to persistent clouds and lost guide stars.
+A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session: a dockable dashboard panel, per-exposure telemetry forwarding, a Safety Monitor that reacts to persistent clouds, lost guide stars and loss of observation, a self-contained **Recovery probe** sequencer instruction that resumes the session after clouds, and automatic management of the Agent's lifecycle. UI in English or Italiano.
 
 The Adaptive Agent itself is a separate, standalone application. This plugin is the bridge between it and N.I.N.A.
 
@@ -22,7 +22,7 @@ All communication is HTTP on `localhost` only, using public APIs (PHD2's server 
 
 ## What the plugin does
 
-Three functions. All optional, all fail-safe: **if the Agent is offline, N.I.N.A. is never disturbed** — no exceptions, no popups, the sequence continues.
+Five functions. All optional, all graceful: **if the Agent is offline, N.I.N.A. is never disturbed** — no exceptions, no popups, the sequence continues.
 
 ### 1. Dockable dashboard panel
 Renders the Agent dashboard inside N.I.N.A. through WebView2, with an online/offline status badge and a **Launch Adaptive Agent** button (starts the Agent's launcher script configured in the plugin settings). No separate browser window needed.
@@ -33,12 +33,26 @@ On every saved light frame the plugin forwards N.I.N.A.'s image metrics to the A
 ### 3. Safety Monitor (Agent → N.I.N.A.)
 A virtual **Safety Monitor** device that N.I.N.A. can use like any other safety device. It reports **unsafe** when:
 
-- the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes), or
-- N.I.N.A. transparency has stayed **CLOUD** for several consecutive polls (asymmetric hysteresis: slow toward unsafe, faster back to safe — a brief haze does not trigger it).
+- the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes);
+- N.I.N.A. sky transparency has stayed **degraded persistently** — an index-based leaky accumulator: clear sky drains the count, brief HAZE bounces are neutral and never reset it (v1.5);
+- N.I.N.A. telemetry has gone **stale while the last known sky was degraded** (v1.5);
+- the **Agent becomes unreachable during an active session** (v1.5) — the monitor stays connected and escalates, it never flips to "safe" by disconnecting.
 
-**Fail-safe by design:** if the Agent is offline or its telemetry is stale, the cloud condition stays neutral — no spurious unsafe. The plugin only *reports* the state with its cause; N.I.N.A. decides what to do (pause, park) according to your safety policy.
+**Never fails toward safe** (field-validated design, v1.5): losing reliable observation of the sky is itself treated as a risk condition. The return to safe always requires positive evidence (clear sky / stable guiding). The plugin only *reports* the state with its cause; N.I.N.A. decides what to do (pause, park) according to your safety policy. Every numeric threshold has a localized tooltip explaining its exact semantics.
 
-> ⚠️ **Important:** for continuous protection, place a **"Wait Until Safe"** instruction **inside your acquisition loop** (not only at the start of the sequence). Otherwise the Safety Monitor is consulted once and clouds arriving mid-sequence will not pause the imaging run.
+### 4. Recovery probe — the session resumes on its own (sequencer instruction)
+The **"Recovery probe (Adaptive Agent)"** instruction turns a clouded-out night into a self-recovering one. Recommended setup (one instruction, no extra containers):
+
+```
+Trigger On Unsafe
+ └ Before Waiting For Safety
+    └ Recovery probe (Adaptive Agent)
+```
+
+While conditions are unsafe it takes ONE unguided verification exposure — replicating your last light frame (exposure/gain/offset/binning) — at a configurable cadence (probe timeout, fail-safe) or earlier when the Agent's guide-star SNR hints the sky is recovering, never more often than the minimum interval. The saved probe refreshes the Agent's transparency index — **the probe image is the only path back to safe** — and the loop ends on its own the moment the monitor returns SAFE, letting the sequence resume unattended.
+
+### 5. Agent lifecycle (on by default since v1.7)
+The plugin **auto-launches the Agent** when N.I.N.A. starts (once the launcher path is configured) and **shuts it down gracefully** when N.I.N.A. closes — PHD2 baseline restored via the Agent's `POST /shutdown`, whose 200 response is a real contract: the Agent self-terminates via an internal watchdog even if its main loop is stuck, so N.I.N.A. closes instantly. Both behaviors can be disabled in the plugin options; by default the plugin only manages the Agent it launched or any reachable one (configurable).
 
 ---
 
@@ -92,11 +106,16 @@ In N.I.N.A.: **Options → Plugins → Adaptive Agent for PHD2 — Dashboard**.
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| Path to `Avvia.bat` (Agent launcher) | *(empty)* | Used by the **Launch Adaptive Agent** button |
+| Plugin language | *Follow N.I.N.A.* | English / Italiano, switches the plugin UI live |
+| Path to `Avvia.bat` (Agent launcher) | *(empty)* | Used by auto-launch and the **Launch Adaptive Agent** button |
+| Auto-launch the Agent | **on** | Starts the Agent when N.I.N.A. starts (inert until the path above is set) |
+| Manage an external Agent | **on** | On N.I.N.A. close, gracefully shut down any reachable Agent (turn off if you run it standalone) |
 | Health-check interval (s) | `15` | How often the plugin polls the Agent (range 5–120) |
 | Dashboard URL | `http://localhost:8080` | Change only if you changed the Agent's port |
 | Forward per-exposure telemetry | **on** | Toggle for function 2 above |
-| Cloud safety enabled | **on** | Toggle for the CLOUD condition, plus its unsafe/safe poll thresholds |
+| Cloud safety enabled | **on** | Index-based persistence thresholds, each with a localized tooltip |
+| Stale telemetry → unsafe | **on** | Escalates only during an active session with the last known sky degraded |
+| Agent lost → unsafe | **on** | Escalates only during an active session |
 | STAR_LOST consolidation (s) | `300` | How long STAR_LOST must persist before unsafe |
 
 Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlugin\settings.json`.
@@ -107,9 +126,9 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 
 1. Open N.I.N.A. and dock the **Adaptive Agent for PHD2** panel from the **Window** menu.
 2. Set the path to the Agent's `Avvia.bat` in the plugin settings (first time only).
-3. Start the Agent with the **Launch Adaptive Agent** button (or run `Avvia.bat` manually).
+3. From then on the Agent starts with N.I.N.A. and stops (baseline restored) when N.I.N.A. closes. The **Launch Adaptive Agent** button remains as a manual fallback.
 4. Within a few seconds the badge turns to *online* and the dashboard loads.
-5. Optionally connect the **Adaptive Agent Safety Monitor** as a safety device and use *Wait Until Safe* in your sequence.
+5. Connect the **Adaptive Agent for PHD2 — Guide Safety** device under *Equipment → Safety Monitor* and add the **Recovery probe** instruction inside a *Trigger On Unsafe* (see function 4) for unattended cloud recovery.
 
 ---
 
@@ -117,7 +136,10 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 
 | Version | Highlights |
 |---------|-----------|
-| **1.4** | Safety Monitor: cloud condition on N.I.N.A. transparency (asymmetric hysteresis, fail-safe) alongside STAR_LOST |
+| **1.7** | Agent lifecycle (auto-launch + graceful shutdown with baseline restore, on by default) · self-contained **Recovery probe** loop · instant N.I.N.A. close (Agent self-kill watchdog) · UI localized EN/IT with live switch · parameter tooltips |
+| 1.6 | Cloud-recovery sequencer instruction (S1 timeout fail-safe + S2 guide-SNR hint) |
+| 1.5 | Safety Monitor hardened after field validation: index-based cloud persistence (leaky accumulator), stale telemetry → unsafe, Agent loss → unsafe — never fails toward safe |
+| 1.4 | Safety Monitor: cloud condition on N.I.N.A. transparency alongside STAR_LOST |
 | 1.3 | Per-exposure telemetry forwarding to the Agent (fire-and-forget) |
 | 1.1 | Agent status badge and Launch button above the panel |
 | 1.0 | Dockable WebView2 panel embedding the dashboard |
