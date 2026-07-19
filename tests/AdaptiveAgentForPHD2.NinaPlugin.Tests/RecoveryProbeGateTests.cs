@@ -130,4 +130,79 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             Assert.IsNull(LastLightMemory.Current);
         }
     }
+
+    /// <summary>
+    /// §64 — cadenza AUTOMATICA della sonda: timeout = finestra §43 − posa, clampata.
+    /// L'invariante che conta: (timeout + posa) non deve MAI superare la finestra di
+    /// freschezza, altrimenti tra due sonde la telemetria di N1 diventa stantia.
+    /// </summary>
+    [TestClass]
+    public sealed class AdaptiveTimeoutTests
+    {
+        private static double Auto(double? window, double exposure) =>
+            RecoveryProbeGate.AdaptiveTimeout(window, exposure).TotalSeconds;
+
+        [TestMethod]
+        public void UsesAgentWindow_MinusExposure()
+        {
+            // finestra reale 180 s (posa 60 s, floor §43) => 120 s di attesa
+            Assert.AreEqual(120, Auto(180, 60), 0.01);
+            // sub lungo: finestra 1.5x450 => 450 s, attesa 150 s
+            Assert.AreEqual(150, Auto(450, 300), 0.01);
+        }
+
+        [TestMethod]
+        public void LongSubs_CappedAtFieldValidatedTarget()
+        {
+            // §64-v2 — la finestra e' un TETTO, non un'uguaglianza: quando consente di
+            // piu', l'attesa si ferma al target validato sul cielo (3 min), non al tetto.
+            Assert.AreEqual(RecoveryProbeGate.TargetSeconds, Auto(900, 600), 0.01);   // v1 dava 300 s
+            Assert.AreEqual(RecoveryProbeGate.TargetSeconds, Auto(1800, 1200), 0.01); // sub estremi: idem
+            // Sub corti: vincola la finestra (sotto il target), come in v1.
+            Assert.IsTrue(Auto(180, 60) < RecoveryProbeGate.TargetSeconds);
+        }
+
+        [TestMethod]
+        public void CycleNeverExceedsFreshnessWindow()
+        {
+            // L'invariante di progetto, su tutta la gamma di pose realistiche.
+            foreach (var exposure in new double[] { 10, 30, 60, 120, 180, 300, 600 })
+            {
+                var window = Math.Max(180.0, 1.5 * exposure);   // §43
+                var cycle = Auto(window, exposure) + exposure;
+                Assert.IsTrue(cycle <= window + 0.001,
+                    $"posa {exposure}s: ciclo {cycle}s supera la finestra {window}s");
+            }
+        }
+
+        [TestMethod]
+        public void FallsBackToLocalFormula_WhenAgentWindowUnavailable()
+        {
+            // agente offline / N1 spento: stessa formula §43 con i default noti.
+            Assert.AreEqual(120, Auto(null, 60), 0.01);      // max(180, 90) - 60
+            Assert.AreEqual(150, Auto(null, 300), 0.01);     // max(180, 450) - 300
+            Assert.AreEqual(Auto(null, 60), Auto(0, 60), 0.01);        // 0 => non valido
+            Assert.AreEqual(Auto(null, 60), Auto(double.NaN, 60), 0.01);
+        }
+
+        [TestMethod]
+        public void ClampsToFloor_AndTargetReplacesCeiling()
+        {
+            Assert.AreEqual(RecoveryProbeGate.AutoFloorSeconds, Auto(100, 90), 0.01);   // 10 s => floor
+            // §64-v2: una finestra enorme non allunga piu' l'attesa — vince il target.
+            Assert.AreEqual(RecoveryProbeGate.TargetSeconds, Auto(5000, 600), 0.01);    // v1 dava il ceiling 900
+            Assert.IsTrue(RecoveryProbeGate.TargetSeconds < RecoveryProbeGate.AutoCeilingSeconds,
+                "il ceiling resta come rete di sicurezza sopra il target");
+        }
+
+        [TestMethod]
+        public void NeverReturnsNonPositive_EvenOnAbsurdInput()
+        {
+            foreach (var (w, e) in new (double?, double)[] { (1, 10000), (null, 0), (-5, 60), (10, 10) })
+            {
+                Assert.IsTrue(RecoveryProbeGate.AdaptiveTimeout(w, e).TotalSeconds
+                              >= RecoveryProbeGate.AutoFloorSeconds);
+            }
+        }
+    }
 }

@@ -5,7 +5,8 @@
     xmlns:dash="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Dashboard"
     xmlns:settings="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Settings"
     xmlns:sequencer="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Sequencer"
-    xmlns:loc="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Localization">
+    xmlns:loc="clr-namespace:AdaptiveAgentForPHD2.NinaPlugin.Localization"
+    xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
 
     <!--
         La chiave DEVE seguire il pattern: FullNamespace.ClassName_Dockable
@@ -31,19 +32,51 @@
         e' cosi' che NINA risolve la riga dell'istruzione nell'Advanced Sequencer).
         L'esposizione della sonda replica l'ultimo LIGHT salvato; il fallback vale solo
         se nessun light e' ancora stato visto in sessione.
+
+        §64-ter — CONVENZIONE NINA (dal template nativo di WaitForTime): la RADICE del
+        template deve essere il wrapper `view:SequenceBlockView`, con l'editor dentro
+        `SequenceItemContent`. E' il wrapper a disegnare la cornice standard della riga
+        (icona, nome, cestino, abilita/disabilita, menu, retry/error): il nostro template
+        §57 aveva come radice uno StackPanel nudo e la riga usciva SENZA cornice.
     -->
     <DataTemplate DataType="{x:Type sequencer:RecoveryProbe}">
+      <view:SequenceBlockView>
+        <view:SequenceBlockView.SequenceItemContent>
+        <!-- §64 — NB: il tema di NINA stila CheckBox come interruttore ON/OFF e NON
+             rende il Content: ogni etichetta deve essere un TextBlock separato (stessa
+             convenzione della pagina Opzioni). Tooltip su etichetta E campo, localizzati. -->
         <StackPanel Orientation="Horizontal">
-            <TextBlock VerticalAlignment="Center" Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}" />
+            <CheckBox VerticalAlignment="Center"
+                      ToolTip="{Binding [Probe_AutoTimeout_Tip], Source={x:Static loc:Loc.Instance}}"
+                      IsChecked="{Binding AutoTimeout}" />
+            <TextBlock VerticalAlignment="Center" Margin="6,0,0,0"
+                       Text="{Binding [Probe_AutoTimeout], Source={x:Static loc:Loc.Instance}}"
+                       ToolTip="{Binding [Probe_AutoTimeout_Tip], Source={x:Static loc:Loc.Instance}}" />
+
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
+                       Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}"
+                       ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     IsEnabled="{Binding ManualTimeoutEnabled}"
+                     ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}"
                      Text="{Binding TimeoutMinutes}" />
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="{Binding [Probe_MinInterval], Source={x:Static loc:Loc.Instance}}" />
+
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
+                       Text="{Binding [Probe_MinInterval], Source={x:Static loc:Loc.Instance}}"
+                       ToolTip="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     ToolTip="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}"
                      Text="{Binding MinIntervalMinutes}" />
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0" Text="{Binding [Probe_FallbackExp], Source={x:Static loc:Loc.Instance}}" />
+
+            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
+                       Text="{Binding [Probe_FallbackExp], Source={x:Static loc:Loc.Instance}}"
+                       ToolTip="{Binding [Probe_FallbackExp_Tip], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     ToolTip="{Binding [Probe_FallbackExp_Tip], Source={x:Static loc:Loc.Instance}}"
                      Text="{Binding FallbackExposureSeconds}" />
         </StackPanel>
+        </view:SequenceBlockView.SequenceItemContent>
+      </view:SequenceBlockView>
     </DataTemplate>
 
 </ResourceDictionary>

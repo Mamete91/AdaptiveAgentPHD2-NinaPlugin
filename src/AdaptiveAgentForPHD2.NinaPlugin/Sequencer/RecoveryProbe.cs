@@ -72,6 +72,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         private readonly HttpClient _http;
         private readonly PluginSettings _settings;
 
+        private bool _autoTimeout = true;   // §64 — automatico di default
         private double _timeoutMinutes = DefaultTimeoutMinutes;
         private double _minIntervalMinutes = DefaultMinIntervalMinutes;
         private double _fallbackExposureSeconds = DefaultFallbackExposureSeconds;
@@ -102,13 +103,35 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         {
             return new RecoveryProbe(this)
             {
+                AutoTimeout = AutoTimeout,
                 TimeoutMinutes = TimeoutMinutes,
                 MinIntervalMinutes = MinIntervalMinutes,
                 FallbackExposureSeconds = FallbackExposureSeconds,
             };
         }
 
-        /// <summary>Cadenza fail-safe S1: la sonda parte comunque dopo questo tempo.</summary>
+        /// <summary>
+        /// §64 — quando true (default) la cadenza fail-safe S1 e' CALCOLATA: agganciata alla
+        /// finestra di freschezza §43 dell'agente meno la durata della posa-sonda, cosi' la
+        /// telemetria di N1 non diventa mai stantia tra due sonde. Deselezionare per tornare
+        /// al valore manuale (escape hatch: la logica adattiva e' in validazione sul campo).
+        /// </summary>
+        [JsonProperty]
+        public bool AutoTimeout
+        {
+            get => _autoTimeout;
+            set
+            {
+                _autoTimeout = value;
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(ManualTimeoutEnabled));
+            }
+        }
+
+        /// <summary>Il campo manuale e' editabile solo a timeout automatico disattivato.</summary>
+        public bool ManualTimeoutEnabled => !_autoTimeout;
+
+        /// <summary>Cadenza fail-safe S1 MANUALE: usata solo se AutoTimeout e' false.</summary>
         [JsonProperty]
         public double TimeoutMinutes
         {
@@ -162,11 +185,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             // annullata / chiusura NINA). Lo stato safety viene LETTO ad ogni poll (5 s):
             // un SAFE che arriva a meta' attesa interrompe subito, come faceva il
             // watchdog del Loop While Unsafe nel design precedente.
-            var timeout = TimeSpan.FromMinutes(TimeoutMinutes);
             var minInterval = TimeSpan.FromMinutes(MinIntervalMinutes);
             int probes = 0;
             bool failureToastShown = false;
-            Logger.Info($"RecoveryProbe: recovery loop started (timeout {TimeoutMinutes:0.#} min, " +
+            Logger.Info($"RecoveryProbe: recovery loop started ({(AutoTimeout
+                            ? "timeout AUTO — matched to the Agent's telemetry freshness window (§43)"
+                            : $"timeout {TimeoutMinutes:0.#} min (manual)")}, " +
                         $"min-interval {MinIntervalMinutes:0.#} min)");
 
             while (true)
@@ -190,7 +214,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                         return;
                     }
                     var now = DateTimeOffset.UtcNow;
-                    bool hint = await ReadHintActiveAsync().ConfigureAwait(false);
+                    var (hint, windowSeconds) = await ReadAgentStatusAsync().ConfigureAwait(false);
+                    // §64 — ricalcolata a ogni poll: la posa replicata puo' cambiare
+                    // (filtro/target diversi) e la finestra §43 la segue.
+                    var timeout = EffectiveTimeout(windowSeconds);
                     var (open, reason) = RecoveryProbeGate.Evaluate(
                         now - start, now - _lastGateOpenUtc, hint, timeout, minInterval);
                     if (open)
@@ -283,24 +310,49 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             Logger.Info($"RecoveryProbe: probe #{probeNumber} saved — the Agent's transparency index will refresh on ingest");
         }
 
-        /// <summary>GET /status → recovery_hint.active. Graceful: qualunque errore => false (puro S1).</summary>
-        private async Task<bool> ReadHintActiveAsync()
+        /// <summary>§64 — timeout effettivo: AUTO (finestra §43 − posa) oppure manuale.</summary>
+        private TimeSpan EffectiveTimeout(double? agentWindowSeconds)
+        {
+            if (!AutoTimeout) { return TimeSpan.FromMinutes(TimeoutMinutes); }
+            var exposure = LastLightMemory.Current?.ExposureSeconds ?? FallbackExposureSeconds;
+            return RecoveryProbeGate.AdaptiveTimeout(agentWindowSeconds, exposure);
+        }
+
+        /// <summary>
+        /// GET /status → (recovery_hint.active, nina.transparency.window_s).
+        /// Graceful: qualunque errore => (false, null) — puro S1 con finestra di fallback.
+        /// </summary>
+        private async Task<(bool HintActive, double? WindowSeconds)> ReadAgentStatusAsync()
         {
             try
             {
                 var url = _settings.DashboardUrl.TrimEnd('/') + "/status";
                 using var response = await _http.GetAsync(url).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) { return false; }
+                if (!response.IsSuccessStatusCode) { return (false, null); }
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
-                return doc.RootElement.TryGetProperty("recovery_hint", out var rh)
+                var root = doc.RootElement;
+
+                bool hint = root.TryGetProperty("recovery_hint", out var rh)
                     && rh.ValueKind == System.Text.Json.JsonValueKind.Object
                     && rh.TryGetProperty("active", out var act)
                     && act.ValueKind == System.Text.Json.JsonValueKind.True;
+
+                double? window = null;
+                if (root.TryGetProperty("nina", out var nina)
+                    && nina.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && nina.TryGetProperty("transparency", out var transp)
+                    && transp.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && transp.TryGetProperty("window_s", out var w)
+                    && w.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    window = w.GetDouble();
+                }
+                return (hint, window);
             }
             catch
             {
-                return false;
+                return (false, null);
             }
         }
 
@@ -308,11 +360,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         {
             // Durata reale = finche' torna SAFE (non prevedibile): stima di UN giro.
             var exposure = LastLightMemory.Current?.ExposureSeconds ?? FallbackExposureSeconds;
-            return TimeSpan.FromMinutes(TimeoutMinutes) + TimeSpan.FromSeconds(exposure);
+            return EffectiveTimeout(null) + TimeSpan.FromSeconds(exposure);
         }
 
         public override string ToString() =>
-            $"Category: {Category}, Item: {nameof(RecoveryProbe)}, Timeout: {TimeoutMinutes} min, " +
+            $"Category: {Category}, Item: {nameof(RecoveryProbe)}, " +
+            $"Timeout: {(AutoTimeout ? "auto" : $"{TimeoutMinutes} min")}, " +
             $"MinInterval: {MinIntervalMinutes} min, FallbackExposure: {FallbackExposureSeconds}s";
     }
 }

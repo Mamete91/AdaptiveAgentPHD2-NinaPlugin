@@ -33,7 +33,12 @@ AUTOMATIC RECOVERY (recommended Advanced Sequencer setup):
       └ Recovery probe (Adaptive Agent)
 
 That single instruction is the complete recovery loop: while conditions are unsafe it automatically takes verification exposures (replicating your last light) at the configured cadence — or sooner when the Agent&#x27;s guide-star SNR hints the sky is recovering — and it ends on its own the moment this monitor returns SAFE, letting the sequence resume. No extra containers, loops or Camera instructions are needed (NINA rejects them inside the trigger anyway).</value></data>
+  <data name="Probe_AutoTimeout" xml:space="preserve"><value>Auto cadence</value></data>
+  <data name="Probe_AutoTimeout_Tip" xml:space="preserve"><value>Recommended. The probe cadence is derived from the Agent&#x27;s telemetry freshness window minus the probe exposure, so sky data never goes stale between probes — and it never waits more than 3 minutes (field-validated) when the window would allow a faster check. It adapts by itself to your sub length. Uncheck to force a fixed timeout in minutes.</value></data>
   <data name="Probe_FallbackExp" xml:space="preserve"><value>Fallback exposure (s)</value></data>
+  <data name="Probe_FallbackExp_Tip" xml:space="preserve"><value>Used ONLY if no LIGHT has been saved yet this session (for example right after restarting N.I.N.A.). In every other case the probe replicates the interrupted sub exactly — required by the transparency index, whose star-count comparison is not normalized for exposure time.</value></data>
+  <data name="Probe_MinInterval_Tip" xml:space="preserve"><value>Absolute floor between two probes: it caps the guide-SNR hint too, so a fluctuating hint can never hammer the shutter. This is your control over how many probe frames end up on disk during a long cloud-out.</value></data>
+  <data name="Probe_Timeout_Tip" xml:space="preserve"><value>Fail-safe cadence: how long the loop waits before taking a verification exposure when the guide-SNR hint has not fired earlier. Used only while “Auto cadence” is off.</value></data>
   <data name="Probe_Issue_Camera" xml:space="preserve"><value>Camera not connected — the recovery probe cannot expose</value></data>
   <data name="Probe_Issue_Safety" xml:space="preserve"><value>Safety monitor not connected — the recovery loop cannot know when conditions are safe again</value></data>
   <data name="Probe_MinInterval" xml:space="preserve"><value>Min interval (min)</value></data>
