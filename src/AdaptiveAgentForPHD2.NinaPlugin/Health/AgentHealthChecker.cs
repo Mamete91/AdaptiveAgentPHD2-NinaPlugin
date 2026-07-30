@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
 using NINA.Core.Utility;
 using System;
@@ -30,7 +30,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         bool TransparencyFresh = false,
         double? TransparencyIndex = null,
         double? TelemetryAgeS = null,
-        bool AgentReachable = true);
+        bool AgentReachable = true,
+        // §68 — osservabilita' del CANALE di guida (non la sua qualita'). Tutti
+        // opzionali: un Agente <v2.9 non li espone => null/false => latch inerte.
+        double? GuideFrameAgeS = null,      // eta' dell'ultimo frame QUALSIASI (guida o looping)
+        double? GuideStepAgeS = null,       // eta' dell'ultimo GuideStep (da quanto non si guida)
+        bool GuidingExpected = false,       // PHD2 non ha annunciato alcuna pausa
+        int GuideStarErrorsRecent = 0,      // ErrorCode per-frame nella finestra recente
+        bool GuideAlertSevere = false);     // Alert PHD2 warning/error recente
 
     /// <summary>
     /// Poller leggero che interroga GET &lt;DashboardUrl&gt;/about a intervalli regolari.
@@ -230,13 +237,54 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     }
                 }
 
+                // §68 — blocco guide_health: osservabilita' del canale di guida.
+                // Tollerante come tutto il resto: assente => valori neutri (latch inerte).
+                double? guideFrameAge = null;
+                double? guideStepAge = null;
+                bool guidingExpected = false;
+                int starErrors = 0;
+                bool alertSevere = false;
+                if (doc.RootElement.TryGetProperty("guide_health", out var gh)
+                    && gh.ValueKind == JsonValueKind.Object
+                    && gh.TryGetProperty("enabled", out var ghEn)
+                    && ghEn.ValueKind == JsonValueKind.True)
+                {
+                    if (gh.TryGetProperty("frame_age_s", out var fa) && fa.ValueKind == JsonValueKind.Number)
+                    {
+                        guideFrameAge = fa.GetDouble();
+                    }
+                    if (gh.TryGetProperty("guide_age_s", out var ga) && ga.ValueKind == JsonValueKind.Number)
+                    {
+                        guideStepAge = ga.GetDouble();
+                    }
+                    if (gh.TryGetProperty("guiding_expected", out var ge)
+                        && (ge.ValueKind == JsonValueKind.True || ge.ValueKind == JsonValueKind.False))
+                    {
+                        guidingExpected = ge.GetBoolean();
+                    }
+                    if (gh.TryGetProperty("star_errors_recent", out var se) && se.ValueKind == JsonValueKind.Number)
+                    {
+                        starErrors = se.GetInt32();
+                    }
+                    if (gh.TryGetProperty("alert_severe", out var al)
+                        && (al.ValueKind == JsonValueKind.True || al.ValueKind == JsonValueKind.False))
+                    {
+                        alertSevere = al.GetBoolean();
+                    }
+                }
+
                 if (doc.RootElement.TryGetProperty("controller", out var controller)
                     && controller.ValueKind == JsonValueKind.Object
                     && controller.TryGetProperty("guiding_state", out var gs)
                     && gs.ValueKind == JsonValueKind.String)
                 {
                     return new AgentStatusSnapshot(gs.GetString(), true, transpState, transpFresh,
-                                                   transpIndex, telemetryAge);
+                                                   transpIndex, telemetryAge, AgentReachable: true,
+                                                   GuideFrameAgeS: guideFrameAge,
+                                                   GuideStepAgeS: guideStepAge,
+                                                   GuidingExpected: guidingExpected,
+                                                   GuideStarErrorsRecent: starErrors,
+                                                   GuideAlertSevere: alertSevere);
                 }
                 // Payload presente ma senza il campo atteso => no-op per il decision engine.
                 return new AgentStatusSnapshot(null, false);

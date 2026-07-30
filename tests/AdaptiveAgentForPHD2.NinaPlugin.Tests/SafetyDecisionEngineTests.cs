@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
 using AdaptiveAgentForPHD2.NinaPlugin.Safety;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -27,12 +27,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             public int StaleUnsafePolls { get; set; } = 8;
             public bool AgentLostUnsafeEnabled { get; set; } = true;
             public int AgentLostUnsafePolls { get; set; } = 4;
+            public bool GuideUnobservableEnabled { get; set; } = true;
+            public int GuideSilenceSeconds { get; set; } = 90;
+            public int GuideUnobservablePolls { get; set; } = 3;
         }
 
         private static AgentStatusSnapshot Snap(
             string? guiding = "NORMAL", bool valid = true, string? state = null,
-            bool fresh = false, double? index = null, double? age = null, bool reachable = true)
-            => new(guiding, valid, state, fresh, index, age, reachable);
+            bool fresh = false, double? index = null, double? age = null, bool reachable = true,
+            double? guideFrameAge = null, bool guidingExpected = false,
+            int starErrors = 0, bool alertSevere = false)
+            => new(guiding, valid, state, fresh, index, age, reachable,
+                   GuideFrameAgeS: guideFrameAge, GuidingExpected: guidingExpected,
+                   GuideStarErrorsRecent: starErrors, GuideAlertSevere: alertSevere);
 
         /// <summary>Esegue n tick identici e ritorna l'ultima decisione non-NoChange (o NoChange).</summary>
         private static SafetyDecision Run(SafetyDecisionEngine e, ISafetySettings s,
@@ -212,6 +219,179 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             Assert.AreEqual(SafetyCause.StarLost, e.LastCause);
             d = Run(e, s, Snap(guiding: "NORMAL"), SafetyDecisionEngine.ResumeTicks);
             Assert.AreEqual(SafetyDecision.BecameSafe, d);
+        }
+
+        // ---- §65: rientro su guida OPERATIVA (non su guida "eccellente") ----------------
+
+        /// <summary>
+        /// Il caso REALE della notte 2026-07-19: cielo limpido, stella ri-tracciata, ma
+        /// RMS nella banda neutra => l'agente non riporta mai NORMAL e prima del §65 il
+        /// latch restava appeso (18 minuti misurati). Ora DEGRADED sblocca il rientro.
+        /// </summary>
+        [TestMethod]
+        public void StarLost_ResumesOn_Degraded_TheFieldCase()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { StarLostConsolidationSeconds = 60, HealthCheckIntervalSeconds = 15 };
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, Run(e, s, Snap(guiding: "STAR_LOST"), 4));
+            var d = Run(e, s, Snap(guiding: "DEGRADED"), SafetyDecisionEngine.ResumeTicks);
+            Assert.AreEqual(SafetyDecision.BecameSafe, d,
+                "stella ri-tracciata (DEGRADED) = guida operativa: il latch deve sbloccarsi");
+        }
+
+        [TestMethod]
+        public void StarLost_ResumesOn_EveryTrackedState()
+        {
+            // Coerenza col criterio: se uno stato non basta a FAR SCATTARE l'unsafe,
+            // non deve poterlo MANTENERE. Nessuno di questi genera UNSAFE da solo.
+            foreach (var guiding in new[] { "NORMAL", "RECOVERING", "DEGRADED", "CRITICAL" })
+            {
+                var e = new SafetyDecisionEngine();
+                var s = new FakeSettings { StarLostConsolidationSeconds = 60, HealthCheckIntervalSeconds = 15 };
+                Run(e, s, Snap(guiding: "STAR_LOST"), 4);
+                Assert.AreEqual(SafetyDecision.BecameSafe,
+                    Run(e, s, Snap(guiding: guiding), SafetyDecisionEngine.ResumeTicks),
+                    $"stato '{guiding}': stella tracciata => guida operativa");
+            }
+        }
+
+        [TestMethod]
+        public void StarLost_DoesNotResumeOn_InactiveOrNullOrStarLost()
+        {
+            // Fail-safe: guida ferma (INACTIVE) o payload senza stato NON sono evidenza
+            // che la stella sia tracciata => il latch RESTA.
+            foreach (var guiding in new string?[] { "INACTIVE", null })
+            {
+                var e = new SafetyDecisionEngine();
+                var s = new FakeSettings { StarLostConsolidationSeconds = 60, HealthCheckIntervalSeconds = 15 };
+                Run(e, s, Snap(guiding: "STAR_LOST"), 4);
+                Assert.AreEqual(SafetyDecision.NoChange,
+                    Run(e, s, Snap(guiding: guiding), SafetyDecisionEngine.ResumeTicks * 4),
+                    $"stato '{guiding ?? "null"}': nessuna evidenza di stella tracciata => resta UNSAFE");
+            }
+        }
+
+        [TestMethod]
+        public void StarLost_StillRequiresHysteresis()
+        {
+            // Il §65 cambia QUALI stati contano, non la durata: l'isteresi resta.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { StarLostConsolidationSeconds = 60, HealthCheckIntervalSeconds = 15 };
+            Run(e, s, Snap(guiding: "STAR_LOST"), 4);
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(e, s, Snap(guiding: "DEGRADED"), SafetyDecisionEngine.ResumeTicks - 1),
+                "sotto ResumeTicks non si rientra");
+            // e una ricaduta in STAR_LOST azzera lo streak
+            Run(e, s, Snap(guiding: "STAR_LOST"), 1);
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(e, s, Snap(guiding: "DEGRADED"), SafetyDecisionEngine.ResumeTicks - 1));
+        }
+
+        // ---- §68: osservabilita' del canale di guida -------------------------------
+
+        /// <summary>
+        /// IL CASO REALE del 2026-07-26: la camera di guida entra in stato patologico,
+        /// PHD2 smette di consegnare frame e `guiding_state` resta CONGELATO su un valore
+        /// operativo (CRITICAL). Prima del §68 nessuno dei quattro latch poteva scattare
+        /// e il monitor sarebbe rimasto SAFE tutta la notte.
+        /// </summary>
+        [TestMethod]
+        public void GuideChannelSilent_WhileGuidingExpected_BecomesUnsafe()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { GuideSilenceSeconds = 90, GuideUnobservablePolls = 3 };
+            // stato congelato su CRITICAL, cielo limpido, agente raggiungibile: tutto
+            // "normale" per gli altri latch — l'unico segnale e' il silenzio del canale.
+            var frozen = Snap(guiding: "CRITICAL", state: "CLEAR", fresh: true, index: 0.92,
+                              guideFrameAge: 300, guidingExpected: true);
+            var d = Run(e, s, frozen, s.GuideUnobservablePolls);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
+            Assert.AreEqual(SafetyCause.GuideUnobservable, e.LastCause);
+        }
+
+        [TestMethod]
+        public void AnnouncedPause_NeverRaisesGuideAlarm()
+        {
+            // Flip/autofocus/stop manuale: PHD2 ANNUNCIA la pausa => guidingExpected=false.
+            // Nessun allarme per quanto a lungo duri il silenzio.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            var d = Run(e, s, Snap(guiding: "NORMAL", guideFrameAge: 3600, guidingExpected: false), 40);
+            Assert.AreEqual(SafetyDecision.NoChange, d);
+        }
+
+        [TestMethod]
+        public void FreshFrames_KeepChannelSafe_AndDrainTheAccumulator()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { GuideSilenceSeconds = 90, GuideUnobservablePolls = 3 };
+            // due tick di silenzio (sotto il cap), poi i frame tornano: niente UNSAFE
+            Run(e, s, Snap(guiding: "NORMAL", guideFrameAge: 200, guidingExpected: true), 2);
+            var d = Run(e, s, Snap(guiding: "NORMAL", guideFrameAge: 2, guidingExpected: true), 5);
+            Assert.AreEqual(SafetyDecision.NoChange, d);
+        }
+
+        [TestMethod]
+        public void ChannelRecovery_ReleasesTheLatch()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { GuideSilenceSeconds = 90, GuideUnobservablePolls = 3 };
+            Assert.AreEqual(SafetyDecision.BecameUnsafe,
+                Run(e, s, Snap(guiding: "NORMAL", guideFrameAge: 300, guidingExpected: true), 3));
+            // i frame tornano a fluire = evidenza POSITIVA di osservabilita'
+            Assert.AreEqual(SafetyDecision.BecameSafe,
+                Run(e, s, Snap(guiding: "NORMAL", guideFrameAge: 1, guidingExpected: true), 3));
+        }
+
+        [TestMethod]
+        public void Corroboration_HalvesTheThreshold_ButNeverTriggersAlone()
+        {
+            var s = new FakeSettings { GuideSilenceSeconds = 90, GuideUnobservablePolls = 3 };
+
+            // 50 s di silenzio: SOTTO la soglia piena (90) => nessun allarme...
+            var quiet = new SafetyDecisionEngine();
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(quiet, s, Snap(guiding: "NORMAL", guideFrameAge: 50, guidingExpected: true), 10));
+
+            // ...ma con Alert PHD2 severo la soglia si dimezza (45) e scatta.
+            var corroborated = new SafetyDecisionEngine();
+            Assert.AreEqual(SafetyDecision.BecameUnsafe,
+                Run(corroborated, s, Snap(guiding: "NORMAL", guideFrameAge: 50,
+                                          guidingExpected: true, alertSevere: true), 3));
+
+            // La sola corroborazione, SENZA silenzio, non decide nulla (paletto §57).
+            var alertOnly = new SafetyDecisionEngine();
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(alertOnly, s, Snap(guiding: "NORMAL", guideFrameAge: 2, guidingExpected: true,
+                                       alertSevere: true, starErrors: 20), 20));
+        }
+
+        [TestMethod]
+        public void KillSwitch_And_OldAgent_LeaveTheLatchInert()
+        {
+            // kill-switch esplicito
+            var e1 = new SafetyDecisionEngine();
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(e1, new FakeSettings { GuideUnobservableEnabled = false },
+                    Snap(guiding: "NORMAL", guideFrameAge: 9999, guidingExpected: true), 20));
+
+            // Agente <v2.9: non espone il blocco => GuideFrameAgeS null => inerte
+            var e2 = new SafetyDecisionEngine();
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(e2, new FakeSettings(), Snap(guiding: "NORMAL", guideFrameAge: null,
+                                                 guidingExpected: true), 20));
+        }
+
+        [TestMethod]
+        public void GuideLatch_DoesNotDisturbTheOtherLatches()
+        {
+            // Il §68 non deve alterare il percorso nubi gia' validato.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            var d = Run(e, s, Snap(state: "CLOUD", fresh: true, index: 0.08,
+                                   guideFrameAge: 2, guidingExpected: true), s.CloudUnsafePolls);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
+            Assert.AreEqual(SafetyCause.Cloud, e.LastCause);
         }
 
         // ---- Regressione: payload malformato con agente raggiungibile => no-op ----

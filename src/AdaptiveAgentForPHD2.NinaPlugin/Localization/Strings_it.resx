@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -14,7 +14,7 @@
   <data name="Dash_Tip_Running" xml:space="preserve"><value>Agente già in esecuzione</value></data>
   <data name="Dash_Tip_SetPath" xml:space="preserve"><value>Imposta il percorso di Avvia.bat dell&#x27;Agente nelle impostazioni del plugin</value></data>
   <data name="Dash_Tip_Start" xml:space="preserve"><value>Avvia il processo Avvia.bat dell&#x27;Agente</value></data>
-  <data name="Dash_Unreachable_Body" xml:space="preserve"><value>La dashboard dell&#x27;Adaptive Agent for PHD2 non risponde su localhost:8080.
+  <data name="Dash_Unreachable_Body" xml:space="preserve"><value>La dashboard dell&#x27;Adaptive Agent for PHD2 non risponde su 127.0.0.1:8080.
 Usa il pulsante “Avvia Adaptive Agent” qui sopra (dopo aver impostato il percorso del launcher nelle impostazioni del plugin), attendi qualche secondo e premi Riprova.</value></data>
   <data name="Dash_Unreachable_Title" xml:space="preserve"><value>Agente non raggiungibile</value></data>
   <data name="Launch_Error" xml:space="preserve"><value>Avvio non riuscito: {0}</value></data>
@@ -58,10 +58,17 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Settings_Cloud_Check" xml:space="preserve"><value>Sicurezza nubi attiva</value></data>
   <data name="Settings_Cloud_Help" xml:space="preserve"><value>Se attiva, il Safety Monitor dichiara unsafe (accanto a STAR_LOST) quando la trasparenza del cielo resta degradata — così NINA mette in pausa la ripresa prima di perdere la stella di guida. Richiede l&#x27;inoltro telemetria e l&#x27;Agente in esecuzione.</value></data>
   <data name="Settings_Cloud_Label" xml:space="preserve"><value>Safety Monitor — sicurezza nubi (trasparenza NINA)</value></data>
-  <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Modificalo solo se hai cambiato la porta dell&#x27;Agente. Default: http://localhost:8080</value></data>
+  <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Modificalo solo se hai cambiato la porta dell&#x27;Agente. Default: http://127.0.0.1:8080</value></data>
   <data name="Settings_DashUrl_Label" xml:space="preserve"><value>URL della dashboard dell&#x27;Agente</value></data>
   <data name="Settings_DegradedPolls" xml:space="preserve"><value>Degradato → unsafe (poll):</value></data>
   <data name="Settings_DrainAbove" xml:space="preserve"><value>Scarica sopra l&#x27;indice:</value></data>
+  <data name="Settings_GuideObs_Check" xml:space="preserve"><value>Dichiara unsafe quando il canale di guida ammutolisce</value></data>
+  <data name="Settings_GuideObs_Help" xml:space="preserve"><value>Sorveglia se PHD2 sta ancora consegnando frame di guida — non quanto guida bene (quello compete al motore). Le pause legittime (flip al meridiano, autofocus, stop manuale) PHD2 le annuncia e non generano mai allarmi; una camera di guida che si guasta smette invece di parlare, ed è quel silenzio che questo rileva. Un alert grave di PHD2 o una raffica di errori stella per-frame dimezzano l&#x27;attesa.</value></data>
+  <data name="Settings_GuideObs_Label" xml:space="preserve"><value>Safety Monitor — osservabilità del canale di guida</value></data>
+  <data name="Settings_GuidePolls" xml:space="preserve"><value>Silenzio → unsafe (poll):</value></data>
+  <data name="Settings_GuidePolls_Tip" xml:space="preserve"><value>Poll di silenzio confermato prima di dichiarare UNSAFE. I frame che tornano a fluire scaricano il conteggio. Più alto = più tollerante ai buchi brevi.</value></data>
+  <data name="Settings_GuideSilence" xml:space="preserve"><value>Soglia di silenzio (s):</value></data>
+  <data name="Settings_GuideSilence_Tip" xml:space="preserve"><value>Secondi senza NESSUN frame di guida (né guida né tentativi di riaggancio) prima di considerare sospetto il canale. Si dimezza se corroborata da un alert grave di PHD2 o da errori stella per-frame ripetuti.</value></data>
   <data name="Settings_Index_Check" xml:space="preserve"><value>Usa la persistenza sull&#x27;indice di trasparenza (consigliato)</value></data>
   <data name="Settings_Index_Help" xml:space="preserve"><value>Accumula il degrado quando l&#x27;indice di trasparenza è basso e lo scarica quando il cielo è sereno; i rimbalzi brevi in HAZE non azzerano più il timer nubi. Deselezionato = logica precedente (poll CLOUD consecutivi sullo stato discreto).</value></data>
   <data name="Settings_Interval_Help" xml:space="preserve"><value>Ogni quanti secondi il plugin verifica se l&#x27;Agente risponde. Valori ammessi: 5–120.</value></data>
@@ -96,6 +103,7 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Toast_AutoLaunchError" xml:space="preserve"><value>Errore nell&#x27;avvio automatico dell&#x27;Adaptive Agent: {0}</value></data>
   <data name="Toast_AutoLaunchFailed" xml:space="preserve"><value>Avvio automatico dell&#x27;Adaptive Agent non riuscito: {0}</value></data>
   <data name="Toast_CloudsUnsafe" xml:space="preserve"><value>Adaptive Agent: nubi persistenti (trasparenza NINA) — Safety Monitor unsafe</value></data>
+  <data name="Toast_GuideUnobservable" xml:space="preserve"><value>Adaptive Agent: il canale di guida ha smesso di rispondere mentre la guida era attesa — Safety Monitor unsafe. Controlla camera di guida / USB.</value></data>
   <data name="Toast_ProbeFailed" xml:space="preserve"><value>Adaptive Agent: posa di verifica non riuscita ({0}) — continuerò a riprovare finché unsafe</value></data>
   <data name="Toast_RecoveredSafe" xml:space="preserve"><value>Adaptive Agent: condizioni ripristinate — Safety Monitor safe</value></data>
   <data name="Toast_StaleUnsafe" xml:space="preserve"><value>Adaptive Agent: telemetria diventata stantia con cielo degradato — Safety Monitor unsafe</value></data>

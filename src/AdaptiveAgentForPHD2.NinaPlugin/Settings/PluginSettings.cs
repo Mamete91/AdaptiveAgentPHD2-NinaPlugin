@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Safety;
 using NINA.Core.Utility;
@@ -17,7 +17,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
     /// </summary>
     public sealed class PluginSettings : BaseINPC, ISafetySettings
     {
-        public const string DefaultDashboardUrl = "http://localhost:8080";
+        // §69 — 127.0.0.1 e NON "localhost": su Windows `localhost` risolve PRIMA a ::1
+        // (IPv6), dove l'Agente non ascolta (uvicorn bind 0.0.0.0 = solo IPv4), e ogni
+        // chiamata paga il fallback. Misurato sui log NINA del 30/7: POST /shutdown
+        // 2031 ms -> 5 ms, chiusura visibile 3043 ms -> 402 ms. Il bind dell'Agente NON
+        // cambia: la dashboard resta raggiungibile da tutta la LAN via IP della macchina.
+        public const string DefaultDashboardUrl = "http://127.0.0.1:8080";
+        public const string LegacyLocalhostUrl = "http://localhost:8080";
         public const int DefaultIntervalSeconds = 15;
         public const int MinIntervalSeconds = 5;
         public const int MaxIntervalSeconds = 120;
@@ -56,6 +62,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         // AutoLaunch e' comunque inerte finche' il path del launcher non e' configurato.
         public const bool DefaultAutoLaunchEnabled = true;
         public const bool DefaultManageExternalAgent = true;
+        // §68 — osservabilita' del canale di guida. Nato dal guasto del 26/7 (camera di
+        // guida patologica: PHD2 tace e `guiding_state` resta congelato). Conservativo:
+        // 90 s di silenzio + 3 poll di consolidamento (~45 s) prima di UNSAFE.
+        public const bool DefaultGuideUnobservableEnabled = true;
+        public const int DefaultGuideSilenceSeconds = 90;
+        public const int MinGuideSilenceSeconds = 20;
+        public const int MaxGuideSilenceSeconds = 600;
+        public const int DefaultGuideUnobservablePolls = 3;
+        public const int MinGuideUnobservablePolls = 1;
+        public const int MaxGuideUnobservablePolls = 60;
         // §60 — lingua del SOLO plugin: "" = Follow N.I.N.A., "en", "it".
         public const string DefaultPluginLanguage = "";
 
@@ -80,6 +96,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private int _agentLostUnsafePolls = DefaultAgentLostUnsafePolls;
         private bool _autoLaunchEnabled = DefaultAutoLaunchEnabled;
         private bool _manageExternalAgent = DefaultManageExternalAgent;
+        private bool _guideUnobservableEnabled = DefaultGuideUnobservableEnabled;
+        private int _guideSilenceSeconds = DefaultGuideSilenceSeconds;
+        private int _guideUnobservablePolls = DefaultGuideUnobservablePolls;
         private string _pluginLanguage = DefaultPluginLanguage;
         private bool _suppressSave;
 
@@ -351,6 +370,51 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
 
 
         /// <summary>
+        /// §68 — kill-switch del latch GUIDE_UNOBSERVABLE. false = comportamento pre-§68
+        /// (il canale di guida non ha alcun watchdog di osservabilita').
+        /// </summary>
+        public bool GuideUnobservableEnabled
+        {
+            get => _guideUnobservableEnabled;
+            set
+            {
+                if (_guideUnobservableEnabled == value) { return; }
+                _guideUnobservableEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Secondi di SILENZIO del canale oltre i quali il canale e' sospetto.
+        /// Con corroborazione (Alert severo / raffica di ErrorCode) la soglia si dimezza.</summary>
+        public int GuideSilenceSeconds
+        {
+            get => _guideSilenceSeconds;
+            set
+            {
+                var clamped = Math.Clamp(value, MinGuideSilenceSeconds, MaxGuideSilenceSeconds);
+                if (_guideSilenceSeconds == clamped) { return; }
+                _guideSilenceSeconds = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Poll di consolidamento (accumulatore leaky) prima di UNSAFE.</summary>
+        public int GuideUnobservablePolls
+        {
+            get => _guideUnobservablePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinGuideUnobservablePolls, MaxGuideUnobservablePolls);
+                if (_guideUnobservablePolls == clamped) { return; }
+                _guideUnobservablePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>
         /// §60 — lingua dell'interfaccia del plugin ("" = segue N.I.N.A.). Aggiorna la
         /// UI live via Loc (indexer bindabile); non tocca mai la cultura di N.I.N.A.
         /// </summary>
@@ -384,7 +448,21 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         settings.AgentBatPath = dto.AgentBatPath ?? "";
                         settings.HealthCheckIntervalSeconds =
                             dto.HealthCheckIntervalSeconds == 0 ? DefaultIntervalSeconds : dto.HealthCheckIntervalSeconds;
-                        settings.DashboardUrl = dto.DashboardUrl ?? DefaultDashboardUrl;
+                        // §69 — migrazione one-shot: chi ha in settings.json il VECCHIO
+                        // default passa a 127.0.0.1. Non era una scelta dell'utente ma un
+                        // default con un difetto di prestazioni misurato; un URL scelto a
+                        // mano (host, porta o schema diversi) viene invece rispettato.
+                        var storedUrl = dto.DashboardUrl ?? DefaultDashboardUrl;
+                        if (string.Equals(storedUrl.TrimEnd('/'), LegacyLocalhostUrl,
+                                          StringComparison.OrdinalIgnoreCase))
+                        {
+                            Logger.Info("Plugin settings: migrating dashboard URL "
+                                        + $"{LegacyLocalhostUrl} -> {DefaultDashboardUrl} "
+                                        + "(§69: localhost resolves to IPv6 first on Windows, "
+                                        + "costing ~2 s per call)");
+                            storedUrl = DefaultDashboardUrl;
+                        }
+                        settings.DashboardUrl = storedUrl;
                         // Utenti che aggiornano da v1.1 non hanno la chiave => 0 => applica il default.
                         settings.StarLostConsolidationSeconds =
                             dto.StarLostConsolidationSeconds == 0 ? DefaultStarLostConsolidationSeconds : dto.StarLostConsolidationSeconds;
@@ -421,6 +499,15 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         // un false salvato esplicitamente resta false.
                         settings.AutoLaunchEnabled = dto.AutoLaunchEnabled ?? DefaultAutoLaunchEnabled;
                         settings.ManageExternalAgent = dto.ManageExternalAgent ?? DefaultManageExternalAgent;
+                        // §68 — chiavi assenti (upgrade <v1.8) => default (born-operative).
+                        settings.GuideUnobservableEnabled =
+                            dto.GuideUnobservableEnabled ?? DefaultGuideUnobservableEnabled;
+                        settings.GuideSilenceSeconds =
+                            (dto.GuideSilenceSeconds == null || dto.GuideSilenceSeconds == 0)
+                                ? DefaultGuideSilenceSeconds : dto.GuideSilenceSeconds.Value;
+                        settings.GuideUnobservablePolls =
+                            (dto.GuideUnobservablePolls == null || dto.GuideUnobservablePolls == 0)
+                                ? DefaultGuideUnobservablePolls : dto.GuideUnobservablePolls.Value;
                         settings.PluginLanguage = dto.PluginLanguage ?? DefaultPluginLanguage;
                         settings._suppressSave = false;
                     }
@@ -458,6 +545,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     AgentLostUnsafePolls = _agentLostUnsafePolls,
                     AutoLaunchEnabled = _autoLaunchEnabled,
                     ManageExternalAgent = _manageExternalAgent,
+                    GuideUnobservableEnabled = _guideUnobservableEnabled,
+                    GuideSilenceSeconds = _guideSilenceSeconds,
+                    GuideUnobservablePolls = _guideUnobservablePolls,
                     PluginLanguage = _pluginLanguage,
                 };
                 File.WriteAllText(SettingsPath,
@@ -492,6 +582,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             // §58 — nullable per upgrade-safety (chiave assente da <v1.7 => default).
             public bool? AutoLaunchEnabled { get; set; }
             public bool? ManageExternalAgent { get; set; }
+            // §68 — nullable per upgrade-safety (chiave assente da <v1.8 => default).
+            public bool? GuideUnobservableEnabled { get; set; }
+            public int? GuideSilenceSeconds { get; set; }
+            public int? GuideUnobservablePolls { get; set; }
             public string? PluginLanguage { get; set; }
         }
     }

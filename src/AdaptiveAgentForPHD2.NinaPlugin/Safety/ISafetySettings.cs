@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
 {
@@ -32,5 +32,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // (mai disconnect-to-SAFE).
         bool AgentLostUnsafeEnabled { get; }
         int AgentLostUnsafePolls { get; }
+
+        // §68 — OSSERVABILITA' del canale di guida (non la sua qualita': quella resta
+        // del motore adattivo, §65). Il canale tace mentre PHD2 non ha annunciato
+        // alcuna pausa => l'ultimo `guiding_state` noto e' una bugia che invecchia.
+        bool GuideUnobservableEnabled { get; }
+        int GuideSilenceSeconds { get; }        // silenzio oltre il quale il canale e' sospetto
+        int GuideUnobservablePolls { get; }     // consolidamento (accumulatore leaky)
     }
 }

@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
 using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
@@ -49,8 +49,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.7.0.0 — virtual Safety Monitor";
-        public string DriverVersion => "1.7.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.8.0.0 — virtual Safety Monitor";
+        public string DriverVersion => "1.8.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -198,6 +198,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                             ShowToast(() => Notification.ShowWarning(
                                 Loc.T("Toast_StaleUnsafe")));
                             break;
+                        case SafetyCause.GuideUnobservable:
+                            Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — guide channel unobservable "
+                                        + "(PHD2 stopped delivering guide frames while guiding was expected)");
+                            ShowToast(() => Notification.ShowWarning(
+                                Loc.T("Toast_GuideUnobservable")));
+                            break;
+
                         case SafetyCause.AgentLost:
                             Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — Adaptive Agent unreachable for {_settings.AgentLostUnsafePolls} polls during an active session");
                             ShowToast(() => Notification.ShowWarning(

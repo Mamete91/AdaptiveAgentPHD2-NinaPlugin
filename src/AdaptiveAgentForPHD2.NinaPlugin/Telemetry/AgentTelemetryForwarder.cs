@@ -115,6 +115,30 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
 
             if (!string.IsNullOrEmpty(e.Filter)) { image["filter"] = e.Filter; }
 
+            // §67 — contesto geometrico e di target, che NINA CONOSCE GIA' e che finora
+            // l'Agente doveva dedurre dal comportamento del conteggio stelle:
+            //   • airmass -> solo telemetria/osservabilita' in questa fase (nessuna
+            //     decisione la usa: prima si raccolgono notti reali, poi si valuta);
+            //   • target  -> chiave della baseline N1 insieme al filtro, cosi' il cambio
+            //     campo e' RICONOSCIUTO invece che inferito (niente falsi CLOUD, niente
+            //     attesa del tetto di congelamento §66).
+            // Difensivo: MetaData e i suoi rami possono mancare su percorsi non standard.
+            string? target = null;
+            try
+            {
+                var md = e.MetaData;
+                if (md != null)
+                {
+                    AddIfNumber(image, "airmass", md.Telescope?.Airmass ?? double.NaN);
+                    var name = md.Target?.Name;
+                    if (!string.IsNullOrWhiteSpace(name)) { target = name.Trim(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"AgentTelemetryForwarder: MetaData non leggibile ({ex.Message}) — omessa");
+            }
+
             var payload = new Dictionary<string, object?>
             {
                 ["schema_version"] = SchemaVersion,
@@ -122,6 +146,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
                 ["ts_unix"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
                 ["image"] = image,
             };
+            // `context` resta assente se non abbiamo nulla da dire (contratto §41 tollerante).
+            if (target != null) { payload["context"] = new Dictionary<string, object?> { ["target"] = target }; }
             return JsonSerializer.Serialize(payload);
         }
 

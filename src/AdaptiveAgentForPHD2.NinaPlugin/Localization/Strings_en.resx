@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -14,7 +14,7 @@
   <data name="Dash_Tip_Running" xml:space="preserve"><value>Agent already running</value></data>
   <data name="Dash_Tip_SetPath" xml:space="preserve"><value>Set the path to the Agent&#x27;s Avvia.bat in the plugin settings</value></data>
   <data name="Dash_Tip_Start" xml:space="preserve"><value>Start the Agent&#x27;s Avvia.bat process</value></data>
-  <data name="Dash_Unreachable_Body" xml:space="preserve"><value>The Adaptive Agent for PHD2 dashboard is not responding on localhost:8080.
+  <data name="Dash_Unreachable_Body" xml:space="preserve"><value>The Adaptive Agent for PHD2 dashboard is not responding on 127.0.0.1:8080.
 Use the “Launch Adaptive Agent” button above (after setting the launcher path in the plugin settings), wait a few seconds, then press Retry.</value></data>
   <data name="Dash_Unreachable_Title" xml:space="preserve"><value>Agent unreachable</value></data>
   <data name="Launch_Error" xml:space="preserve"><value>Launch failed: {0}</value></data>
@@ -58,10 +58,17 @@ That single instruction is the complete recovery loop: while conditions are unsa
   <data name="Settings_Cloud_Check" xml:space="preserve"><value>Cloud safety enabled</value></data>
   <data name="Settings_Cloud_Help" xml:space="preserve"><value>When enabled, the Safety Monitor reports unsafe (alongside STAR_LOST) when sky transparency stays degraded — so NINA can pause the imaging run before the guide star is lost. Requires telemetry forwarding and the Agent running.</value></data>
   <data name="Settings_Cloud_Label" xml:space="preserve"><value>Safety Monitor — cloud safety (NINA transparency)</value></data>
-  <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Change only if you changed the Agent&#x27;s port. Default: http://localhost:8080</value></data>
+  <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Change only if you changed the Agent&#x27;s port. Default: http://127.0.0.1:8080</value></data>
   <data name="Settings_DashUrl_Label" xml:space="preserve"><value>Agent dashboard URL</value></data>
   <data name="Settings_DegradedPolls" xml:space="preserve"><value>Degraded → unsafe (polls):</value></data>
   <data name="Settings_DrainAbove" xml:space="preserve"><value>Drain above index:</value></data>
+  <data name="Settings_GuideObs_Check" xml:space="preserve"><value>Report unsafe when the guide channel goes silent</value></data>
+  <data name="Settings_GuideObs_Help" xml:space="preserve"><value>Watches whether PHD2 is still delivering guide frames at all — not how good the guiding is (that is the engine&#x27;s job). Legitimate pauses (meridian flip, autofocus, manual stop) are announced by PHD2 and never raise an alarm; a guide camera that dies stops talking instead, and that silence is what this detects. A severe PHD2 alert or a burst of per-frame star errors halves the delay.</value></data>
+  <data name="Settings_GuideObs_Label" xml:space="preserve"><value>Safety Monitor — guide channel observability</value></data>
+  <data name="Settings_GuidePolls" xml:space="preserve"><value>Silent → unsafe (polls):</value></data>
+  <data name="Settings_GuidePolls_Tip" xml:space="preserve"><value>Polls of confirmed silence before declaring UNSAFE. Frames flowing again drain the count. Higher = more tolerant of brief gaps.</value></data>
+  <data name="Settings_GuideSilence" xml:space="preserve"><value>Silence threshold (s):</value></data>
+  <data name="Settings_GuideSilence_Tip" xml:space="preserve"><value>Seconds without ANY guide frame (guiding or re-acquisition attempts) before the channel is considered suspect. Halved when corroborated by a severe PHD2 alert or repeated per-frame star errors.</value></data>
   <data name="Settings_Index_Check" xml:space="preserve"><value>Use transparency index persistence (recommended)</value></data>
   <data name="Settings_Index_Help" xml:space="preserve"><value>Accumulates degradation while the transparency index is low and drains it while the sky is clear; brief HAZE bounces no longer reset the cloud timer. Unchecked = legacy logic (consecutive CLOUD polls on the discrete state).</value></data>
   <data name="Settings_Interval_Help" xml:space="preserve"><value>How often the plugin checks whether the Agent responds. Allowed range: 5–120.</value></data>
@@ -96,6 +103,7 @@ That single instruction is the complete recovery loop: while conditions are unsa
   <data name="Toast_AutoLaunchError" xml:space="preserve"><value>Adaptive Agent auto-launch error: {0}</value></data>
   <data name="Toast_AutoLaunchFailed" xml:space="preserve"><value>Adaptive Agent auto-launch failed: {0}</value></data>
   <data name="Toast_CloudsUnsafe" xml:space="preserve"><value>Adaptive Agent: persistent clouds (NINA transparency) — Safety Monitor unsafe</value></data>
+  <data name="Toast_GuideUnobservable" xml:space="preserve"><value>Adaptive Agent: the guide channel stopped responding while guiding was expected — Safety Monitor unsafe. Check the guide camera / USB.</value></data>
   <data name="Toast_ProbeFailed" xml:space="preserve"><value>Adaptive Agent: recovery probe failed ({0}) — will keep retrying while unsafe</value></data>
   <data name="Toast_RecoveredSafe" xml:space="preserve"><value>Adaptive Agent: conditions recovered — Safety Monitor safe</value></data>
   <data name="Toast_StaleUnsafe" xml:space="preserve"><value>Adaptive Agent: telemetry went stale while the sky was degraded — Safety Monitor unsafe</value></data>
