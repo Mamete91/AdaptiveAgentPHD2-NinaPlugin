@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Sequencer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -204,5 +204,69 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
                               >= RecoveryProbeGate.AutoFloorSeconds);
             }
         }
-    }
+    
+        // ---- §71: deferral sul "canale pronto" (multi-evidenza §68) ----
+
+        [TestMethod]
+        public void ChannelNotReady_DefersS1_UntilCeiling()
+        {
+            var timeout = System.TimeSpan.FromMinutes(3);
+            var none = System.TimeSpan.Zero;
+
+            // timeout S1 scaduto ma canale dichiarato NON pronto: slitta...
+            var (open, reason) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromMinutes(5), System.TimeSpan.FromMinutes(30),
+                hintActive: false, timeout, none, channelReady: false);
+            Assert.IsFalse(open, "canale non pronto: la S1 deve slittare");
+            StringAssert.Contains(reason, "deferred");
+
+            // ...ma MAI oltre il tetto: a 15 min si sonda comunque (diagnosi).
+            var (openAtCeiling, reasonCeiling) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromSeconds(RecoveryProbeGate.AutoCeilingSeconds + 1),
+                System.TimeSpan.FromMinutes(30),
+                hintActive: false, timeout, none, channelReady: false);
+            Assert.IsTrue(openAtCeiling, "il tetto e' un fail-safe RIGIDO (§55)");
+            Assert.AreEqual(RecoveryProbeGate.ReasonCeilingForced, reasonCeiling);
+        }
+
+        [TestMethod]
+        public void Hint_HasAbsolutePriority_OverChannelGate()
+        {
+            // Invariante §71: S2 attivo => gate aperto. Strutturalmente il hint
+            // implica canale vivo; qui si blinda contro modifiche future.
+            var (open, reason) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromSeconds(10), System.TimeSpan.FromMinutes(30),
+                hintActive: true, System.TimeSpan.FromMinutes(3), System.TimeSpan.Zero,
+                channelReady: false);
+            Assert.IsTrue(open, "il deferrer non puo' MAI ritardare una sonda S2");
+            Assert.AreEqual(RecoveryProbeGate.ReasonHint, reason);
+        }
+
+        [TestMethod]
+        public void UnknownChannel_FailsOpen_LikePre71()
+        {
+            // Agente vecchio / irraggiungibile / kill-switch => null => pre-§71.
+            var (open, _) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromMinutes(5), System.TimeSpan.FromMinutes(30),
+                hintActive: false, System.TimeSpan.FromMinutes(3), System.TimeSpan.Zero,
+                channelReady: null);
+            Assert.IsTrue(open, "assenza di segnale NON e' evidenza: fail-open");
+
+            var (openTrue, _) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromMinutes(5), System.TimeSpan.FromMinutes(30),
+                hintActive: false, System.TimeSpan.FromMinutes(3), System.TimeSpan.Zero,
+                channelReady: true);
+            Assert.IsTrue(openTrue, "canale pronto: comportamento normale");
+        }
+
+        [TestMethod]
+        public void MinInterval_StillFloors_EvenWithReadyChannel()
+        {
+            var (open, _) = RecoveryProbeGate.Evaluate(
+                System.TimeSpan.FromMinutes(20), System.TimeSpan.FromMinutes(1),
+                hintActive: false, System.TimeSpan.FromMinutes(3),
+                System.TimeSpan.FromMinutes(5), channelReady: true);
+            Assert.IsFalse(open, "il pavimento min-interval resta sovrano");
+        }
+}
 }

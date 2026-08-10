@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Lifecycle;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
@@ -214,12 +214,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                         return;
                     }
                     var now = DateTimeOffset.UtcNow;
-                    var (hint, windowSeconds) = await ReadAgentStatusAsync().ConfigureAwait(false);
+                    var (hint, windowSeconds, channelReady) = await ReadAgentStatusAsync().ConfigureAwait(false);
                     // §64 — ricalcolata a ogni poll: la posa replicata puo' cambiare
                     // (filtro/target diversi) e la finestra §43 la segue.
                     var timeout = EffectiveTimeout(windowSeconds);
+                    // §71 — kill-switch: disattivato => null => fail-open (pre-§71).
+                    var gateReady = _settings.ProbeChannelGateEnabled ? channelReady : null;
                     var (open, reason) = RecoveryProbeGate.Evaluate(
-                        now - start, now - _lastGateOpenUtc, hint, timeout, minInterval);
+                        now - start, now - _lastGateOpenUtc, hint, timeout, minInterval, gateReady);
                     if (open)
                     {
                         _lastGateOpenUtc = now;
@@ -322,13 +324,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         /// GET /status → (recovery_hint.active, nina.transparency.window_s).
         /// Graceful: qualunque errore => (false, null) — puro S1 con finestra di fallback.
         /// </summary>
-        private async Task<(bool HintActive, double? WindowSeconds)> ReadAgentStatusAsync()
+        private async Task<(bool HintActive, double? WindowSeconds, bool? ChannelReady)> ReadAgentStatusAsync()
         {
             try
             {
                 var url = _settings.DashboardUrl.TrimEnd('/') + "/status";
                 using var response = await _http.GetAsync(url).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) { return (false, null); }
+                if (!response.IsSuccessStatusCode) { return (false, null, null); }
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
                 var root = doc.RootElement;
@@ -348,11 +350,23 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                 {
                     window = w.GetDouble();
                 }
-                return (hint, window);
+
+                // §71 — "canale pronto" (consenso multi-condizione §68, calcolato
+                // dall'Agente a risoluzione 3 s). Tollerante: blocco assente
+                // (Agente <v2.10) => null => fail-open nel gate.
+                bool? channelReady = null;
+                if (root.TryGetProperty("guide_health", out var gh)
+                    && gh.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && gh.TryGetProperty("channel_ready", out var cr))
+                {
+                    if (cr.ValueKind == System.Text.Json.JsonValueKind.True) { channelReady = true; }
+                    else if (cr.ValueKind == System.Text.Json.JsonValueKind.False) { channelReady = false; }
+                }
+                return (hint, window, channelReady);
             }
             catch
             {
-                return (false, null);
+                return (false, null, null);
             }
         }
 

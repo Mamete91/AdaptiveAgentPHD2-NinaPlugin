@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
 using AdaptiveAgentForPHD2.NinaPlugin.Launch;
 using AdaptiveAgentForPHD2.NinaPlugin.Safety;
@@ -21,6 +21,20 @@ namespace AdaptiveAgentForPHD2.NinaPlugin
         public static AgentServices Instance => _instance.Value;
 
         public PluginSettings Settings { get; }
+
+        // §72 — servizi NINA agganciati dal costruttore MEF del plugin (unico punto
+        // dove l'injection e' disponibile). Nullable: il monitor degrada a inerte
+        // (protezione meridiano Idle) se il plugin non li ha ancora agganciati.
+        public NINA.Equipment.Interfaces.Mediator.ITelescopeMediator? TelescopeMediator { get; private set; }
+        public NINA.Profile.Interfaces.IProfileService? ProfileService { get; private set; }
+
+        public void AttachNinaServices(
+            NINA.Equipment.Interfaces.Mediator.ITelescopeMediator telescopeMediator,
+            NINA.Profile.Interfaces.IProfileService profileService)
+        {
+            TelescopeMediator = telescopeMediator;
+            ProfileService = profileService;
+        }
         public AgentLauncher Launcher { get; }
         public AgentHealthChecker HealthChecker { get; }
 

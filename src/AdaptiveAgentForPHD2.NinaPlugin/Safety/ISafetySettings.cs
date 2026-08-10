@@ -39,5 +39,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         bool GuideUnobservableEnabled { get; }
         int GuideSilenceSeconds { get; }        // silenzio oltre il quale il canale e' sospetto
         int GuideUnobservablePolls { get; }     // consolidamento (accumulatore leaky)
+
+        // §76 — il canale guida (3 s) puo' ACCUMULARE verso unsafe quando vede il
+        // cielo peggiorare mentre N1 (300 s) e' ancora fermo sull'ultima posa buona.
+        // Mai il contrario: verso SAFE il giudice resta la posa-sonda.
+        bool SkyDegradingAccumulateEnabled { get; }
     }
 }

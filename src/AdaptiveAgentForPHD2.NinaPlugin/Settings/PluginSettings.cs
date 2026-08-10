@@ -72,6 +72,23 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         public const int DefaultGuideUnobservablePolls = 3;
         public const int MinGuideUnobservablePolls = 1;
         public const int MaxGuideUnobservablePolls = 60;
+        // §76 — il canale guida (3 s) puo' ACCUMULARE verso unsafe quando vede il
+        // cielo peggiorare mentre N1 (300 s) e' ancora fermo sull'ultima posa buona.
+        // Mai il contrario. Born-operative: chiude un buco misurato di 8 minuti.
+        public const bool DefaultSkyDegradingAccumulateEnabled = true;
+        // §71 — gate della Recovery Probe sul "canale pronto" (consenso §68). Deferrer
+        // puro: allunga la cadenza S1 fino al tetto (RecoveryProbeGate.AutoCeilingSeconds),
+        // mai un veto. Born-operative: a fail-open totale (agente vecchio => inerte).
+        public const bool DefaultProbeChannelGateEnabled = true;
+        // §72 — protezione meridiano. Decisione di Alessandro (2026-08-04): born-operative,
+        // NON opt-in — nel perimetro attuale l'unico consumatore di IsSafe e' NINA e il
+        // rischio reale e' il DEADLOCK (flip mancato => tracking fermo => tutti gli occhi
+        // del monitor spenti => mai piu' SAFE). Da RIVALUTARE se compariranno consumatori
+        // ulteriori di IsSafe (tetto motorizzato, cupola, osservatorio remoto).
+        public const bool DefaultMeridianProtectionEnabled = true;
+        public const int DefaultMeridianLeadMinutes = 4;
+        public const int MinMeridianLeadMinutes = 1;
+        public const int MaxMeridianLeadMinutes = 10;
         // §60 — lingua del SOLO plugin: "" = Follow N.I.N.A., "en", "it".
         public const string DefaultPluginLanguage = "";
 
@@ -99,6 +116,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private bool _guideUnobservableEnabled = DefaultGuideUnobservableEnabled;
         private int _guideSilenceSeconds = DefaultGuideSilenceSeconds;
         private int _guideUnobservablePolls = DefaultGuideUnobservablePolls;
+        private bool _skyDegradingAccumulateEnabled = DefaultSkyDegradingAccumulateEnabled;
+        private bool _probeChannelGateEnabled = DefaultProbeChannelGateEnabled;
+        private bool _meridianProtectionEnabled = DefaultMeridianProtectionEnabled;
+        private int _meridianLeadMinutes = DefaultMeridianLeadMinutes;
         private string _pluginLanguage = DefaultPluginLanguage;
         private bool _suppressSave;
 
@@ -369,6 +390,62 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         }
 
 
+        /// <summary>§76 — consenti al canale guida di accumulare verso unsafe quando
+        /// il cielo peggiora prima che N1 possa accorgersene. Mai verso safe.</summary>
+        public bool SkyDegradingAccumulateEnabled
+        {
+            get => _skyDegradingAccumulateEnabled;
+            set
+            {
+                if (_skyDegradingAccumulateEnabled == value) { return; }
+                _skyDegradingAccumulateEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>§71 — gate della sonda sul "canale pronto": differisce la S1 (mai
+        /// oltre il tetto di 15 min) finche' il canale guida non e' stabilmente tornato.</summary>
+        public bool ProbeChannelGateEnabled
+        {
+            get => _probeChannelGateEnabled;
+            set
+            {
+                if (_probeChannelGateEnabled == value) { return; }
+                _probeChannelGateEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>§72 — finestra di protezione al meridiano (vedi MeridianProtectionEngine).</summary>
+        public bool MeridianProtectionEnabled
+        {
+            get => _meridianProtectionEnabled;
+            set
+            {
+                if (_meridianProtectionEnabled == value) { return; }
+                _meridianProtectionEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>§72 — anticipo (minuti) con cui la finestra si apre rispetto alla
+        /// deadline del flip (meridiano + MaxMinutesAfterMeridian del profilo NINA).</summary>
+        public int MeridianLeadMinutes
+        {
+            get => _meridianLeadMinutes;
+            set
+            {
+                var clamped = Math.Clamp(value, MinMeridianLeadMinutes, MaxMeridianLeadMinutes);
+                if (_meridianLeadMinutes == clamped) { return; }
+                _meridianLeadMinutes = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
         /// <summary>
         /// §68 — kill-switch del latch GUIDE_UNOBSERVABLE. false = comportamento pre-§68
         /// (il canale di guida non ha alcun watchdog di osservabilita').
@@ -508,6 +585,15 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                         settings.GuideUnobservablePolls =
                             (dto.GuideUnobservablePolls == null || dto.GuideUnobservablePolls == 0)
                                 ? DefaultGuideUnobservablePolls : dto.GuideUnobservablePolls.Value;
+                        settings.SkyDegradingAccumulateEnabled =
+                            dto.SkyDegradingAccumulateEnabled ?? DefaultSkyDegradingAccumulateEnabled;
+                        settings.ProbeChannelGateEnabled =
+                            dto.ProbeChannelGateEnabled ?? DefaultProbeChannelGateEnabled;
+                        settings.MeridianProtectionEnabled =
+                            dto.MeridianProtectionEnabled ?? DefaultMeridianProtectionEnabled;
+                        settings.MeridianLeadMinutes =
+                            (dto.MeridianLeadMinutes == null || dto.MeridianLeadMinutes == 0)
+                                ? DefaultMeridianLeadMinutes : dto.MeridianLeadMinutes.Value;
                         settings.PluginLanguage = dto.PluginLanguage ?? DefaultPluginLanguage;
                         settings._suppressSave = false;
                     }
@@ -548,6 +634,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     GuideUnobservableEnabled = _guideUnobservableEnabled,
                     GuideSilenceSeconds = _guideSilenceSeconds,
                     GuideUnobservablePolls = _guideUnobservablePolls,
+                    SkyDegradingAccumulateEnabled = _skyDegradingAccumulateEnabled,
+                    ProbeChannelGateEnabled = _probeChannelGateEnabled,
+                    MeridianProtectionEnabled = _meridianProtectionEnabled,
+                    MeridianLeadMinutes = _meridianLeadMinutes,
                     PluginLanguage = _pluginLanguage,
                 };
                 File.WriteAllText(SettingsPath,
@@ -586,6 +676,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public bool? GuideUnobservableEnabled { get; set; }
             public int? GuideSilenceSeconds { get; set; }
             public int? GuideUnobservablePolls { get; set; }
+            public bool? SkyDegradingAccumulateEnabled { get; set; }
+            public bool? ProbeChannelGateEnabled { get; set; }
+            public bool? MeridianProtectionEnabled { get; set; }
+            public int? MeridianLeadMinutes { get; set; }
             public string? PluginLanguage { get; set; }
         }
     }

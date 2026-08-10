@@ -298,6 +298,49 @@
                    Text="{Binding GuideUnobservablePolls, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
 
+        <!-- §76 — il canale guida può anticipare l'unsafe -->
+        <CheckBox Content="{Binding [Settings_SkyDegrade_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  Margin="0,14,0,0"
+                  IsChecked="{Binding SkyDegradingAccumulateEnabled}" />
+        <TextBlock Text="{Binding [Settings_SkyDegrade_Help], Source={x:Static loc:Loc.Instance}}"
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,2,0,4" />
+
+        <!-- §71 — gate della sonda sul canale guida -->
+        <CheckBox Content="{Binding [Settings_ProbeGate_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  Margin="0,14,0,0"
+                  IsChecked="{Binding ProbeChannelGateEnabled}" />
+        <TextBlock Text="{Binding [Settings_ProbeGate_Help], Source={x:Static loc:Loc.Instance}}"
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,2,0,4" />
+
+        <!-- §72 — protezione meridiano -->
+        <TextBlock Text="{Binding [Settings_Meridian_Label], Source={x:Static loc:Loc.Instance}}"
+                   FontWeight="SemiBold"
+                   Margin="0,14,0,2" />
+        <CheckBox Content="{Binding [Settings_Meridian_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  IsChecked="{Binding MeridianProtectionEnabled}" />
+        <TextBlock Text="{Binding [Settings_Meridian_Help], Source={x:Static loc:Loc.Instance}}"
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,2,0,4" />
+        <StackPanel Orientation="Horizontal">
+          <TextBlock VerticalAlignment="Center" Opacity="0.8"
+                     Text="{Binding [Settings_MeridianLead], Source={x:Static loc:Loc.Instance}}"
+                     ToolTip="{Binding [Settings_MeridianLead_Tip], Source={x:Static loc:Loc.Instance}}" />
+          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
+                   ToolTip="{Binding [Settings_MeridianLead_Tip], Source={x:Static loc:Loc.Instance}}"
+                   Text="{Binding MeridianLeadMinutes, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
+
         <!-- §58-ter — mini-guida al recovery automatico -->
         <TextBlock Text="{Binding [Settings_Recovery_Title], Source={x:Static loc:Loc.Instance}}"
                    FontWeight="SemiBold"

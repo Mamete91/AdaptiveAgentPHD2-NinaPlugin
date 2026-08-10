@@ -1,4 +1,4 @@
-using AdaptiveAgentForPHD2.NinaPlugin.Lifecycle;
+﻿using AdaptiveAgentForPHD2.NinaPlugin.Lifecycle;
 using AdaptiveAgentForPHD2.NinaPlugin.Sequencer;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
 using AdaptiveAgentForPHD2.NinaPlugin.Telemetry;
@@ -31,9 +31,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Plugin
         private readonly AgentLifecycleCoordinator _lifecycle;
 
         [ImportingConstructor]
-        public AdaptiveAgentForPHD2Plugin(IImageSaveMediator imageSaveMediator)
+        public AdaptiveAgentForPHD2Plugin(IImageSaveMediator imageSaveMediator,
+                                          NINA.Equipment.Interfaces.Mediator.ITelescopeMediator telescopeMediator,
+                                          NINA.Profile.Interfaces.IProfileService profileService)
         {
             var services = AgentServices.Instance;
+            // §72 — la protezione meridiano ha bisogno di leggere la montatura (side of
+            // pier, angolo orario, tracking) e le impostazioni MF del profilo.
+            services.AttachNinaServices(telescopeMediator, profileService);
             _telemetryForwarder = new AgentTelemetryForwarder(imageSaveMediator, services.Settings);
             _lastLightTracker = new LastLightTracker(imageSaveMediator);
             _lifecycle = new AgentLifecycleCoordinator(

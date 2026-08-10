@@ -37,7 +37,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         double? GuideStepAgeS = null,       // eta' dell'ultimo GuideStep (da quanto non si guida)
         bool GuidingExpected = false,       // PHD2 non ha annunciato alcuna pausa
         int GuideStarErrorsRecent = 0,      // ErrorCode per-frame nella finestra recente
-        bool GuideAlertSevere = false);     // Alert PHD2 warning/error recente
+        bool GuideAlertSevere = false,     // Alert PHD2 warning/error recente
+        // §76 — evidenza che il cielo sta PEGGIORANDO vista dal canale guida
+        // (3 s) mentre N1 e' ancora fermo all'ultima posa (300 s). Assente su
+        // Agenti <v2.14 => false => comportamento pre-§76.
+        bool SkyDegrading = false);
 
     /// <summary>
     /// Poller leggero che interroga GET &lt;DashboardUrl&gt;/about a intervalli regolari.
@@ -273,6 +277,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     }
                 }
 
+                // §76 — evidenza di degrado dal canale guida (recovery_hint.degrading).
+                bool skyDegrading = false;
+                if (doc.RootElement.TryGetProperty("recovery_hint", out var rhBlock)
+                    && rhBlock.ValueKind == JsonValueKind.Object
+                    && rhBlock.TryGetProperty("degrading", out var deg)
+                    && deg.ValueKind == JsonValueKind.True)
+                {
+                    skyDegrading = true;
+                }
+
                 if (doc.RootElement.TryGetProperty("controller", out var controller)
                     && controller.ValueKind == JsonValueKind.Object
                     && controller.TryGetProperty("guiding_state", out var gs)
@@ -284,7 +298,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                                                    GuideStepAgeS: guideStepAge,
                                                    GuidingExpected: guidingExpected,
                                                    GuideStarErrorsRecent: starErrors,
-                                                   GuideAlertSevere: alertSevere);
+                                                   GuideAlertSevere: alertSevere,
+                                                   SkyDegrading: skyDegrading);
                 }
                 // Payload presente ma senza il campo atteso => no-op per il decision engine.
                 return new AgentStatusSnapshot(null, false);

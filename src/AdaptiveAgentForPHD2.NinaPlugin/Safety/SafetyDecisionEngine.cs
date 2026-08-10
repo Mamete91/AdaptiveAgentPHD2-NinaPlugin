@@ -34,6 +34,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
     ///   AGENT_LOST    agente irraggiungibile + sessione attiva =&gt; UNSAFE dopo
     ///                 AgentLostUnsafePolls (fix Bug C: prima produceva disconnect-to-SAFE).
     ///
+    /// §76 — il percorso CLOUD ha ora DUE sensori: quello lento (N1, camera di ripresa,
+    /// 300 s) e quello veloce (SNR della stella di guida, 3 s). Il veloce puo' solo
+    /// ACCUMULARE verso unsafe e impedire il drain, mai drenare: una stella sola puo'
+    /// testimoniare che il cielo e' brutto, non che il campo e' tornato buono.
+    ///
     /// Recupero: al ritorno dei dati, i latch STALE/AGENT_LOST si trasferiscono sul percorso
     /// CLOUD (degrado saturato) =&gt; servono ClearSafePolls di evidenza CLEAR per tornare SAFE.
     /// Senza trasparenza disponibile, AGENT_LOST rientra con guida OPERATIVA per ResumeTicks.
@@ -271,7 +276,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             // NB: lo stantio NON azzera piu' il degrado accumulato (prima: reset silenzioso).
 
             // ---- Condizione 3: CLOUD ----
-            if (settings.CloudSafetyEnabled && fresh)
+            // §76 — il gate si apre anche col SOLO sensore veloce: la SNR di guida
+            // arriva da PHD2, non da NINA, quindi non dipende dalla freschezza della
+            // telemetria di ripresa. E' proprio il caso in cui e' l'unico che parla.
+            if (settings.CloudSafetyEnabled
+                && (fresh || (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)))
             {
                 if (settings.UseIndexCloudLogic)
                 {
@@ -316,9 +325,37 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 accumulate = st == "CLOUD";
                 drain = st == "CLEAR";
             }
+            else if (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)
+            {
+                // Nessun dato di trasparenza ma il canale guida vede il degrado:
+                // e' proprio il caso in cui il sensore veloce e' l'unico che parla.
+                accumulate = true;
+                drain = false;
+            }
             else
             {
                 return; // nessun dato di trasparenza: non toccare nulla
+            }
+
+            // §76 — SENSORE VELOCE accanto a quello lento. Il canale guida vede a
+            // 3 s, la camera di ripresa a 300 s: la notte del 4/8 la SNR di guida e'
+            // crollata alle 23:08 mentre N1 — fermo all'ultima posa buona — ha
+            // riconosciuto le nubi solo alle 23:14 (UNSAFE alle 23:16). Otto minuti
+            // di posa integralmente sotto le nubi.
+            //
+            // UNA SOLA DIREZIONE, ed e' il paletto centrale: questa evidenza puo'
+            // solo ACCUMULARE verso unsafe e IMPEDIRE il drain, MAI drenare verso
+            // safe. L'asimmetria e' deliberata su due argomenti indipendenti:
+            //   • costi: dichiarare unsafe presto costa una pausa, dichiararlo tardi
+            //     costa pose rovinate;
+            //   • fisica: la stella di guida e' UNA. Puo' dire "qui e' brutto" (le
+            //     nubi sono grandi, se coprono lei coprono il campo), non "il campo
+            //     e' buono" — uno squarcio sopra la stella non salva il resto. Per
+            //     quello serve la camera di ripresa: N1 e la posa-sonda.
+            if (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)
+            {
+                accumulate = true;
+                drain = false;
             }
 
             if (accumulate)

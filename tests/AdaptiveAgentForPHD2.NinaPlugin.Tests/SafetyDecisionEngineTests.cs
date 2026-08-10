@@ -30,16 +30,18 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             public bool GuideUnobservableEnabled { get; set; } = true;
             public int GuideSilenceSeconds { get; set; } = 90;
             public int GuideUnobservablePolls { get; set; } = 3;
+            public bool SkyDegradingAccumulateEnabled { get; set; } = true;
         }
 
         private static AgentStatusSnapshot Snap(
             string? guiding = "NORMAL", bool valid = true, string? state = null,
             bool fresh = false, double? index = null, double? age = null, bool reachable = true,
             double? guideFrameAge = null, bool guidingExpected = false,
-            int starErrors = 0, bool alertSevere = false)
+            int starErrors = 0, bool alertSevere = false, bool skyDegrading = false)
             => new(guiding, valid, state, fresh, index, age, reachable,
                    GuideFrameAgeS: guideFrameAge, GuidingExpected: guidingExpected,
-                   GuideStarErrorsRecent: starErrors, GuideAlertSevere: alertSevere);
+                   GuideStarErrorsRecent: starErrors, GuideAlertSevere: alertSevere,
+                   SkyDegrading: skyDegrading);
 
         /// <summary>Esegue n tick identici e ritorna l'ultima decisione non-NoChange (o NoChange).</summary>
         private static SafetyDecision Run(SafetyDecisionEngine e, ISafetySettings s,
@@ -404,5 +406,72 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             var d = Run(e, s, Snap(guiding: null, valid: false, reachable: true), 30);
             Assert.AreEqual(SafetyDecision.NoChange, d, "payload transitoriamente malformato: mantieni lo stato");
         }
-    }
+    
+        // ---- §76: il sensore VELOCE accanto a quello lento ----
+
+        [TestMethod]
+        public void SkyDegrading_AccumulatesTowardUnsafe_WhileIndexStillLooksClear()
+        {
+            // Il caso della notte 4/8: N1 e' ancora fermo sull'ultima posa BUONA
+            // (indice 0.95) mentre il canale guida vede gia' il crollo.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95,
+                                   skyDegrading: true), s.CloudUnsafePolls);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d,
+                "il sensore veloce deve poter anticipare l'unsafe");
+            Assert.AreEqual(SafetyCause.Cloud, e.LastCause);
+        }
+
+        [TestMethod]
+        public void SkyDegrading_NeverDrainsTowardSafe()
+        {
+            // IL PALETTO CENTRALE: una stella sola non riporta al sicuro.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            Run(e, s, Snap(state: "CLOUD", fresh: true, index: 0.08), s.CloudUnsafePolls);
+
+            // Cielo tornato limpido per N1 MA il canale guida dice ancora degrado:
+            // il drain e' bloccato, si resta unsafe.
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95,
+                                   skyDegrading: true), 20);
+            Assert.AreEqual(SafetyDecision.NoChange, d,
+                "con degrado in corso il drain e' sospeso: nessun rientro");
+
+            // Quando anche il canale guida si tranquillizza, il rientro riprende
+            // dal percorso NORMALE (la posa-sonda resta il giudice).
+            var d2 = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95), s.ClearSafePolls);
+            Assert.AreEqual(SafetyDecision.BecameSafe, d2);
+        }
+
+        [TestMethod]
+        public void SkyDegrading_KillSwitch_RestoresPre76Behaviour()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { SkyDegradingAccumulateEnabled = false };
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95,
+                                   skyDegrading: true), 30);
+            Assert.AreEqual(SafetyDecision.NoChange, d);
+        }
+
+        [TestMethod]
+        public void SkyDegrading_WorksEvenWithoutTransparencyData()
+        {
+            // Nessun indice, nessuno stato: il veloce e' l'unico che parla.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            var d = Run(e, s, Snap(state: null, fresh: false, index: null,
+                                   skyDegrading: true), s.CloudUnsafePolls);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
+        }
+
+        [TestMethod]
+        public void OldAgent_WithoutTheSignal_BehavesExactlyAsBefore()
+        {
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95), 30);
+            Assert.AreEqual(SafetyDecision.NoChange, d, "fail-inert su Agenti <v2.14");
+        }
+}
 }

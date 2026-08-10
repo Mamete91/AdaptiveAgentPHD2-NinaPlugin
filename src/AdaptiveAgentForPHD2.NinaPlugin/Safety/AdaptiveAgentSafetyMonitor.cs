@@ -2,6 +2,7 @@
 using AdaptiveAgentForPHD2.NinaPlugin.Health;
 using AdaptiveAgentForPHD2.NinaPlugin.Localization;
 using AdaptiveAgentForPHD2.NinaPlugin.Settings;
+using AdaptiveAgentForPHD2.NinaPlugin.Telemetry;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
 using NINA.Equipment.Interfaces;
@@ -29,6 +30,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private readonly PluginSettings _settings;
         private readonly AgentHealthChecker _health;
         private readonly SafetyDecisionEngine _engine;
+        // §72 — protezione meridiano: macchina a stati PURA; qui vive solo il
+        // coordinamento (lettura montatura/profilo, azioni, toast). `_internalSafe`
+        // e' lo stato ONESTO dei latch; IsSafe riportato = _internalSafe || finestra.
+        private readonly MeridianProtectionEngine _meridian = new();
+        // §73 — riflesso dello stato verso la dashboard dell'Agente (sola presentazione).
+        private readonly SafetyStatePublisher _publisher;
+        private bool _internalSafe = true;
 
         private bool _isSafe = true;   // ottimistico all'avvio: safe finche' non si dimostra il contrario
         private bool _connected;
@@ -39,6 +47,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _settings = settings;
             _health = health;
             _engine = engine;
+            _publisher = new SafetyStatePublisher(settings);
         }
 
         // --- Identita' del driver (vedi pre-flight: stesse convenzioni del SafetyMonitorSimulator di NINA) ---
@@ -49,8 +58,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.8.0.0 — virtual Safety Monitor";
-        public string DriverVersion => "1.8.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.11.0.0 — virtual Safety Monitor";
+        public string DriverVersion => "1.11.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -102,7 +111,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             Unsubscribe();
             _health.StatusPollingEnabled = false;
             _engine.Reset();
+            _meridian.Reset();
             Connected = false;
+            // §73 — la dashboard deve saperlo: monitor scollegato = stato SCONOSCIUTO,
+            // mai un verde residuo lasciato sullo schermo (stessa disciplina §55).
+            _publisher.Publish("SAFE", null, null, connected: false, internalSafe: _internalSafe,
+                               _settings.HealthCheckIntervalSeconds);
         }
 
         public void SetupDialog() { /* no-op: HasSetupDialog == false */ }
@@ -185,7 +199,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             switch (decision)
             {
                 case SafetyDecision.BecameUnsafe:
-                    IsSafe = false;
+                    _internalSafe = false;
                     switch (_engine.LastCause)
                     {
                         case SafetyCause.Cloud:
@@ -221,7 +235,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     break;
 
                 case SafetyDecision.BecameSafe:
-                    IsSafe = true;
+                    _internalSafe = true;
                     Logger.Info("Adaptive Agent Safety Monitor: SAFE — conditions recovered");
                     ShowToast(() => Notification.ShowInformation(
                         Loc.T("Toast_RecoveredSafe")));
@@ -232,9 +246,152 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     break;
             }
 
+            // §72 — protezione meridiano: il valore RIPORTATO puo' divergere da quello
+            // interno SOLO dentro la finestra (limitata, osservabile, revocabile).
+            var windowOpen = TickMeridianProtection();
+            IsSafe = _internalSafe || windowOpen;
+
+            // §73 — riflesso verso la dashboard: uno stato VERO per volta, con la
+            // causa (che e' l'azione operativa distinta) e un dettaglio leggibile.
+            PublishState(windowOpen);
+
             // §3 osservabilita' — una riga per tick, stato POST-decisione (Debug: segue il
             // livello di log globale di NINA, come da convenzioni plugin).
-            Logger.Debug($"N6 tick: {_engine.LastTickSummary} -> {(IsSafe ? "SAFE" : "UNSAFE")} ({decision})");
+            Logger.Debug($"N6 tick: {_engine.LastTickSummary} "
+                         + $"| meridian[{(windowOpen ? "OPEN" : "idle")}] "
+                         + $"-> internal={(_internalSafe ? "SAFE" : "UNSAFE")} reported={(IsSafe ? "SAFE" : "UNSAFE")} ({decision})");
+        }
+
+        /// <summary>
+        /// §73 — traduce lo stato interno in UNO stato riportato per la dashboard.
+        /// Nessuno stato inventato: SAFE / UNSAFE(+causa) / MERIDIAN_PROTECTION sono
+        /// esattamente cio' che il monitor puo' essere. La finestra §72 ha precedenza
+        /// di VISUALIZZAZIONE perche' e' l'unico caso in cui il riportato diverge
+        /// dall'interno — ed e' proprio quello che l'osservatore deve vedere.
+        /// </summary>
+        private void PublishState(bool windowOpen)
+        {
+            try
+            {
+                string state;
+                string? cause = null;
+                string? detail = null;
+
+                if (windowOpen)
+                {
+                    // §73 — nessun testo utente da qui: il plugin invia FATTI (stato,
+                    // causa), la dashboard mette le PAROLE. Altrimenti una stringa
+                    // localizzata del plugin (EN/IT) finirebbe in una dashboard che ha
+                    // una lingua sua: due sistemi di localizzazione sullo stesso testo.
+                    state = "MERIDIAN_PROTECTION";
+                }
+                else if (_internalSafe)
+                {
+                    state = "SAFE";
+                }
+                else
+                {
+                    state = "UNSAFE";
+                    cause = _engine.LastCause switch
+                    {
+                        SafetyCause.Cloud => "CLOUD",
+                        SafetyCause.StaleTelemetry => "STALE_TELEMETRY",
+                        SafetyCause.AgentLost => "AGENT_LOST",
+                        SafetyCause.GuideUnobservable => "GUIDE_UNOBSERVABLE",
+                        SafetyCause.StarLost => "STAR_LOST",
+                        _ => null,
+                    };
+                }
+                _publisher.Publish(state, cause, detail, Connected, _internalSafe,
+                                   _settings.HealthCheckIntervalSeconds);
+            }
+            catch (Exception ex)
+            {
+                // La presentazione non puo' MAI disturbare la sicurezza.
+                Logger.Debug($"Safety state publish skipped ({ex.Message})");
+            }
+        }
+
+        /// <summary>
+        /// §72 — un tick della protezione meridiano: legge montatura e profilo (fail-inert:
+        /// qualunque cosa manchi => finestra Idle), fa girare la macchina a stati pura ed
+        /// esegue le azioni (riattivazione tracking ex-post, log, toast).
+        /// </summary>
+        private bool TickMeridianProtection()
+        {
+            try
+            {
+                var services = AgentServices.Instance;
+                var tm = services.TelescopeMediator;
+                var info = tm?.GetInfo();
+
+                bool mountConnected = info?.Connected == true;
+                bool tracking = info?.TrackingEnabled == true;
+                bool? pierIsWest = null;
+                double? minutesToDeadline = null;
+
+                if (mountConnected && info != null)
+                {
+                    pierIsWest = info.SideOfPier switch
+                    {
+                        NINA.Core.Enum.PierSide.pierWest => true,
+                        NINA.Core.Enum.PierSide.pierEast => false,
+                        _ => (bool?)null,
+                    };
+                    // Angolo orario in ORE (LST − RA, normalizzato a [−12, +12]);
+                    // deadline del flip = meridiano + MaxMinutesAfterMeridian (profilo).
+                    double ha = info.SiderealTime - info.RightAscension;
+                    while (ha < -12) { ha += 24; }
+                    while (ha > 12) { ha -= 24; }
+                    double maxAfterMin = services.ProfileService?
+                        .ActiveProfile?.MeridianFlipSettings?.MaxMinutesAfterMeridian ?? 5.0;
+                    minutesToDeadline = maxAfterMin - ha * 60.0;
+                }
+
+                var (evt, resumeTracking) = _meridian.Tick(
+                    _settings.MeridianProtectionEnabled, _internalSafe, mountConnected,
+                    tracking, pierIsWest, minutesToDeadline, _settings.MeridianLeadMinutes,
+                    Environment.TickCount64 / 1000.0);
+
+                if (resumeTracking && tm != null)
+                {
+                    Logger.Warning("Meridian protection (§72): tracking was already stopped by the "
+                                   + "unsafe-flip guard — re-enabling it INSIDE the window so the "
+                                   + "delayed flip can run at the next trigger evaluation");
+                    tm.SetTrackingEnabled(true);
+                }
+
+                switch (evt)
+                {
+                    case MeridianEvent.Opened:
+                        Logger.Info($"Meridian protection (§72): window OPEN "
+                                    + $"(deadline in {minutesToDeadline:0.0} min, lead {_settings.MeridianLeadMinutes} min) "
+                                    + "— reporting SAFE for the mechanical flip ONLY; internal latches untouched");
+                        ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianOpen")));
+                        break;
+                    case MeridianEvent.ClosedFlipDone:
+                        Logger.Info("Meridian protection (§72): pier side changed — flip done, window CLOSED, "
+                                    + "honest unsafe restored (recovery loop re-parks the sequence)");
+                        ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianFlipDone")));
+                        break;
+                    case MeridianEvent.ClosedTimeout:
+                        Logger.Warning($"Meridian protection (§72): window expired after "
+                                       + $"{MeridianProtectionEngine.WindowMaxMinutes:0} min without a flip "
+                                       + "(trigger missing/disabled?) — LOCKOUT, manual tracking restart needed when sky clears");
+                        ShowToast(() => Notification.ShowWarning(Loc.T("Toast_MeridianTimeout")));
+                        break;
+                    case MeridianEvent.ClosedConditionsLost:
+                        Logger.Info("Meridian protection (§72): window closed (real safe / mount lost / disabled)");
+                        break;
+                }
+                return _meridian.WindowOpen;
+            }
+            catch (Exception ex)
+            {
+                // Fail-inert: la protezione meridiano non deve MAI abbattere il tick N6.
+                Logger.Error($"Meridian protection (§72) tick failed ({ex.Message}) — window forced closed");
+                return false;
+            }
         }
     }
 }

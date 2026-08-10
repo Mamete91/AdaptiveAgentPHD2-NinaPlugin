@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using System;
 
 namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
@@ -21,7 +21,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 
         // §64 — parametri del timeout AUTOMATICO (vedi AdaptiveTimeout).
         public const double AutoFloorSeconds = 60;      // mai piu' fitto di 1 min
-        public const double AutoCeilingSeconds = 900;   // rete di sicurezza (col target e' inerte)
+        public const double AutoCeilingSeconds = 900;
+        // §71 — sonda forzata al tetto nonostante il canale non pronto (diagnosi).
+        public const string ReasonCeilingForced =
+            "probe ceiling reached (S1) — probing despite guide channel not ready";   // rete di sicurezza (col target e' inerte)
         public const double TargetSeconds = 180;        // §64-v2 — cap di latenza VALIDATO SUL CIELO (3 min)
         public const double FallbackWindowFloorSeconds = 180;    // §43 staleness_seconds
         public const double FallbackWindowExposureFactor = 1.5;  // §43 staleness_exposure_factor
@@ -73,7 +76,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             TimeSpan sinceLastProbe,
             bool hintActive,
             TimeSpan timeout,
-            TimeSpan minInterval)
+            TimeSpan minInterval,
+            bool? channelReady = null)
         {
             if (sinceLastProbe < minInterval)
             {
@@ -81,11 +85,26 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             }
             if (hintActive)
             {
+                // §71 invariante: S2 ha priorita' ASSOLUTA — il hint richiede SNR che
+                // fluisce, quindi canale vivo: il deferrer non puo' mai ritardarlo.
                 return (true, ReasonHint);
             }
             if (sinceStart >= timeout)
             {
-                return (true, ReasonTimeout);
+                // §71 — DEFERRER (mai veto): a canale guida dichiaratamente NON pronto
+                // (evidenza POSITIVA dall'Agente: consenso multi-condizione §68), la
+                // sonda S1 slitta — una posa da 300 s merita un canale stabile. Tetto
+                // RIGIDO ad AutoCeilingSeconds: oltre, si sonda COMUNQUE (fail-safe §55:
+                // mai silenzio illimitato; sotto canale morto le sonde al tetto sono
+                // pura diagnosi, il resume resta impossibile per i latch guida).
+                // channelReady == null (agente vecchio/irraggiungibile/kill-switch)
+                // => FAIL-OPEN: comportamento identico a prima del §71.
+                if (channelReady == false && sinceStart < TimeSpan.FromSeconds(AutoCeilingSeconds))
+                {
+                    return (false, $"S1 deferred: guide channel not ready "
+                                 + $"({sinceStart.TotalMinutes:0.0}/{AutoCeilingSeconds / 60.0:0} min ceiling)");
+                }
+                return (true, channelReady == false ? ReasonCeilingForced : ReasonTimeout);
             }
             return (false, $"waiting ({sinceStart.TotalMinutes:0.0}/{timeout.TotalMinutes:0.0} min, hint inactive)");
         }
