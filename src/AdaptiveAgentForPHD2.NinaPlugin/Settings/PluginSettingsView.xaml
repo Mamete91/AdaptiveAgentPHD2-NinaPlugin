@@ -308,6 +308,25 @@
                    Opacity="0.7"
                    TextWrapping="Wrap"
                    Margin="0,2,0,4" />
+        <!-- §79 — soglia PROPRIA del percorso rapido: tarare la persistenza del cielo
+             (impostazione "Degradato -> unsafe") non deve rallentare questa. -->
+        <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                    IsEnabled="{Binding SkyDegradingAccumulateEnabled}">
+          <TextBlock Text="{Binding [Settings_SkyDegrade_Polls], Source={x:Static loc:Loc.Instance}}"
+                     VerticalAlignment="Center" Opacity="0.8">
+            <TextBlock.ToolTip>
+              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
+                         TextWrapping="Wrap" MaxWidth="360" />
+            </TextBlock.ToolTip>
+          </TextBlock>
+          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
+                   Text="{Binding SkyDegradingUnsafePolls, UpdateSourceTrigger=LostFocus}">
+            <TextBox.ToolTip>
+              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
+                         TextWrapping="Wrap" MaxWidth="360" />
+            </TextBox.ToolTip>
+          </TextBox>
+        </StackPanel>
 
         <!-- §71 — gate della sonda sul canale guida -->
         <CheckBox Content="{Binding [Settings_ProbeGate_Check], Source={x:Static loc:Loc.Instance}}"

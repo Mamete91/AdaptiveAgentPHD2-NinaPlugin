@@ -76,6 +76,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         // cielo peggiorare mentre N1 (300 s) e' ancora fermo sull'ultima posa buona.
         // Mai il contrario. Born-operative: chiude un buco misurato di 8 minuti.
         public const bool DefaultSkyDegradingAccumulateEnabled = true;
+        // §79 — default = DefaultCloudUnsafePolls: alla separazione il comportamento
+        // resta IDENTICO a prima. Cambia la tarabilita', non i tempi.
+        public const int DefaultSkyDegradingUnsafePolls = 8;
+        public const int MinSkyDegradingUnsafePolls = 2;
+        public const int MaxSkyDegradingUnsafePolls = 120;
         // §71 — gate della Recovery Probe sul "canale pronto" (consenso §68). Deferrer
         // puro: allunga la cadenza S1 fino al tetto (RecoveryProbeGate.AutoCeilingSeconds),
         // mai un veto. Born-operative: a fail-open totale (agente vecchio => inerte).
@@ -117,6 +122,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private int _guideSilenceSeconds = DefaultGuideSilenceSeconds;
         private int _guideUnobservablePolls = DefaultGuideUnobservablePolls;
         private bool _skyDegradingAccumulateEnabled = DefaultSkyDegradingAccumulateEnabled;
+        private int _skyDegradingUnsafePolls = DefaultSkyDegradingUnsafePolls;
         private bool _probeChannelGateEnabled = DefaultProbeChannelGateEnabled;
         private bool _meridianProtectionEnabled = DefaultMeridianProtectionEnabled;
         private int _meridianLeadMinutes = DefaultMeridianLeadMinutes;
@@ -228,6 +234,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                 var clamped = Math.Clamp(value, MinCloudUnsafePolls, MaxCloudUnsafePolls);
                 if (_cloudUnsafePolls == clamped) { return; }
                 _cloudUnsafePolls = clamped;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>§79 — poll di degrado dal CANALE GUIDA prima di UNSAFE. Soglia
+        /// PROPRIA: alzare CloudUnsafePolls (persistenza del cielo misurata dalla camera)
+        /// non deve rallentare questa, che nasce proprio per anticipare la camera.</summary>
+        public int SkyDegradingUnsafePolls
+        {
+            get => _skyDegradingUnsafePolls;
+            set
+            {
+                var clamped = Math.Clamp(value, MinSkyDegradingUnsafePolls, MaxSkyDegradingUnsafePolls);
+                if (_skyDegradingUnsafePolls == clamped) { return; }
+                _skyDegradingUnsafePolls = clamped;
                 RaisePropertyChanged();
                 Save();
             }
@@ -587,6 +609,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                                 ? DefaultGuideUnobservablePolls : dto.GuideUnobservablePolls.Value;
                         settings.SkyDegradingAccumulateEnabled =
                             dto.SkyDegradingAccumulateEnabled ?? DefaultSkyDegradingAccumulateEnabled;
+                        settings.SkyDegradingUnsafePolls =
+                            (dto.SkyDegradingUnsafePolls == null || dto.SkyDegradingUnsafePolls == 0)
+                                ? DefaultSkyDegradingUnsafePolls : dto.SkyDegradingUnsafePolls.Value;
                         settings.ProbeChannelGateEnabled =
                             dto.ProbeChannelGateEnabled ?? DefaultProbeChannelGateEnabled;
                         settings.MeridianProtectionEnabled =
@@ -677,6 +702,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public int? GuideSilenceSeconds { get; set; }
             public int? GuideUnobservablePolls { get; set; }
             public bool? SkyDegradingAccumulateEnabled { get; set; }
+            public int? SkyDegradingUnsafePolls { get; set; }
             public bool? ProbeChannelGateEnabled { get; set; }
             public bool? MeridianProtectionEnabled { get; set; }
             public int? MeridianLeadMinutes { get; set; }

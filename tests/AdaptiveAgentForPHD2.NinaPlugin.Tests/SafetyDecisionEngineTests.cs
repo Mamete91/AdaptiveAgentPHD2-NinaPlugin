@@ -31,6 +31,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             public int GuideSilenceSeconds { get; set; } = 90;
             public int GuideUnobservablePolls { get; set; } = 3;
             public bool SkyDegradingAccumulateEnabled { get; set; } = true;
+            public int SkyDegradingUnsafePolls { get; set; } = 8;
         }
 
         private static AgentStatusSnapshot Snap(
@@ -472,6 +473,80 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             var s = new FakeSettings();
             var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95), 30);
             Assert.AreEqual(SafetyDecision.NoChange, d, "fail-inert su Agenti <v2.14");
+        }
+
+        // ---- §79: RAPIDITA' e PERSISTENZA sono dimensioni diverse ----
+        // Prima i due percorsi condividevano accumulatore e tetto: tarare l'uno
+        // muoveva l'altro. Questi test blindano l'indipendenza appena conquistata.
+
+        [TestMethod]
+        public void RaisingPersistenceThreshold_DoesNotSlowTheFastPath()
+        {
+            // LA GARANZIA per la taratura in programma: portare la persistenza del
+            // cielo da 2 a 5 minuti (8 -> 20 poll) non deve rallentare il canale
+            // guida, che esiste PROPRIO per anticipare la camera. Con l'accumulatore
+            // condiviso qui sarebbero serviti 20 poll invece di 8.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { CloudUnsafePolls = 20, SkyDegradingUnsafePolls = 8 };
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95,
+                                   skyDegrading: true), 8);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d,
+                "il percorso rapido deve conservare la propria soglia");
+        }
+
+        [TestMethod]
+        public void RaisingFastThreshold_DoesNotSlowThePersistentPath()
+        {
+            // E la simmetrica: il tetto del canale guida non tocca la camera.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { CloudUnsafePolls = 8, SkyDegradingUnsafePolls = 40 };
+            var d = Run(e, s, Snap(state: "CLOUD", fresh: true, index: 0.08), 8);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d,
+                "la camera di ripresa ha la sua soglia di persistenza");
+        }
+
+        [TestMethod]
+        public void FastPathAlone_NeverGrantsSafe_WithoutCameraEvidence()
+        {
+            // L'asimmetria FISICA sopravvive alla separazione: la stella di guida
+            // arma l'unsafe ma non lo disarma. A disarmarlo e' solo la camera di
+            // ripresa — cioe' la posa-sonda del recupero.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { CloudUnsafePolls = 20, SkyDegradingUnsafePolls = 8 };
+            Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95, skyDegrading: true), 8);
+
+            // Il canale guida si tranquillizza, ma NON arriva nessuna posa.
+            var d = Run(e, s, Snap(fresh: true), 60);
+            Assert.AreEqual(SafetyDecision.NoChange, d,
+                "senza evidenza della camera non si rientra");
+        }
+
+        [TestMethod]
+        public void CameraEvidence_ReleasesBothAccumulators()
+        {
+            // Il drenaggio si scala sul proprio tetto: ClearSafePolls conserva il suo
+            // significato ("N poll di sereno per rientrare") su ENTRAMBI i percorsi,
+            // quale che sia il rapporto fra le due soglie.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings { CloudUnsafePolls = 20, SkyDegradingUnsafePolls = 8 };
+            Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95, skyDegrading: true), 8);
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95), s.ClearSafePolls);
+            Assert.AreEqual(SafetyDecision.BecameSafe, d,
+                "la camera concede il rientro nei poll previsti");
+        }
+
+        [TestMethod]
+        public void Separation_DoesNotChangeTodaysTiming()
+        {
+            // Il §79 cambia la TARABILITA', non i tempi: alla consegna le due soglie
+            // valgono lo stesso numero e il comportamento resta quello di prima.
+            var e = new SafetyDecisionEngine();
+            var s = new FakeSettings();
+            Assert.AreEqual(s.CloudUnsafePolls, s.SkyDegradingUnsafePolls,
+                "default allineati: nessun cambio di comportamento alla consegna");
+            var d = Run(e, s, Snap(state: "CLEAR", fresh: true, index: 0.95,
+                                   skyDegrading: true), s.SkyDegradingUnsafePolls);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
         }
 }
 }

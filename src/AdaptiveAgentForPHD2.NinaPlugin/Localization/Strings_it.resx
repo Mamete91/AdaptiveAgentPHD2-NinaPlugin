@@ -21,7 +21,8 @@ Usa il pulsante “Avvia Adaptive Agent” qui sopra (dopo aver impostato il per
   <data name="Launch_FileNotFound" xml:space="preserve"><value>Il file Avvia.bat configurato nelle impostazioni non esiste. Verifica il percorso.</value></data>
   <data name="Launch_NotConfigured" xml:space="preserve"><value>Il percorso di Avvia.bat non è impostato. Configuralo nelle impostazioni del plugin.</value></data>
   <data name="Launch_Started" xml:space="preserve"><value>Processo avviato. L&#x27;Agente sarà pronto tra qualche secondo.</value></data>
-  <data name="Monitor_Description" xml:space="preserve"><value>Controlla in continuo l&#x27;affidabilità della guida dell&#x27;Adaptive Agent e le condizioni del cielo.
+  <data name="Monitor_Name" xml:space="preserve"><value>Adaptive Agent for PHD2 — Condizioni del Cielo</value></data>
+  <data name="Monitor_Description" xml:space="preserve"><value>Controlla in continuo le condizioni del cielo e l&#x27;affidabilità della guida dell&#x27;Adaptive Agent. (Compare nella categoria “Safety Monitor” dell&#x27;equipaggiamento di N.I.N.A.: è il nome che N.I.N.A. dà allo slot, non il ruolo di questo monitor.)
 
 Dichiara UNSAFE quando: STAR_LOST persiste oltre il timeout configurato; la trasparenza del cielo resta degradata (persistenza sull&#x27;indice); la telemetria NINA diventa stantia con cielo degradato; oppure l&#x27;Agente diventa irraggiungibile durante una sessione attiva. La perdita di osservazione affidabile è sempre trattata come condizione di rischio — mai come &quot;sicura&quot;.
 
@@ -40,7 +41,7 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Probe_MinInterval_Tip" xml:space="preserve"><value>Intervallo minimo assoluto tra due sonde: vale anche per il suggerimento dalla SNR di guida, così un hint ballerino non può martellare l&#x27;otturatore. È la tua leva su quante pose-sonda finiscono su disco durante una lunga nuvolata.</value></data>
   <data name="Probe_Timeout_Tip" xml:space="preserve"><value>Cadenza di sicurezza: quanto attende il ciclo prima di scattare una posa di verifica, se il suggerimento dalla SNR di guida non è già scattato. Usato solo con “Cadenza automatica” disattivata.</value></data>
   <data name="Probe_Issue_Camera" xml:space="preserve"><value>Camera non connessa — la posa di verifica non può partire</value></data>
-  <data name="Probe_Issue_Safety" xml:space="preserve"><value>Safety monitor non connesso — il ciclo di recupero non può sapere quando le condizioni tornano sicure</value></data>
+  <data name="Probe_Issue_Safety" xml:space="preserve"><value>Monitor Condizioni del Cielo non connesso — il ciclo di recupero non può sapere quando le condizioni tornano sicure</value></data>
   <data name="Probe_MinInterval" xml:space="preserve"><value>Intervallo minimo (min)</value></data>
   <data name="Probe_Timeout" xml:space="preserve"><value>Timeout sonda (min)</value></data>
   <data name="Settings_AccumBelow" xml:space="preserve"><value>Accumula sotto l&#x27;indice:</value></data>
@@ -56,20 +57,20 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Settings_Browse_Title" xml:space="preserve"><value>Seleziona il file Avvia.bat dell&#x27;Adaptive Agent</value></data>
   <data name="Settings_ClearPolls" xml:space="preserve"><value>Sereno → safe (poll):</value></data>
   <data name="Settings_Cloud_Check" xml:space="preserve"><value>Sicurezza nubi attiva</value></data>
-  <data name="Settings_Cloud_Help" xml:space="preserve"><value>Se attiva, il Safety Monitor dichiara unsafe (accanto a STAR_LOST) quando la trasparenza del cielo resta degradata — così NINA mette in pausa la ripresa prima di perdere la stella di guida. Richiede l&#x27;inoltro telemetria e l&#x27;Agente in esecuzione.</value></data>
-  <data name="Settings_Cloud_Label" xml:space="preserve"><value>Safety Monitor — sicurezza nubi (trasparenza NINA)</value></data>
+  <data name="Settings_Cloud_Help" xml:space="preserve"><value>Se attiva, il monitor dichiara unsafe (accanto a STAR_LOST) quando la trasparenza del cielo resta degradata — così NINA mette in pausa la ripresa prima di perdere la stella di guida. Richiede l&#x27;inoltro telemetria e l&#x27;Agente in esecuzione.</value></data>
+  <data name="Settings_Cloud_Label" xml:space="preserve"><value>Condizioni del Cielo — sicurezza nubi (trasparenza NINA)</value></data>
   <data name="Settings_DashUrl_Help" xml:space="preserve"><value>Modificalo solo se hai cambiato la porta dell&#x27;Agente. Default: http://127.0.0.1:8080</value></data>
   <data name="Settings_DashUrl_Label" xml:space="preserve"><value>URL della dashboard dell&#x27;Agente</value></data>
   <data name="Settings_DegradedPolls" xml:space="preserve"><value>Degradato → unsafe (poll):</value></data>
   <data name="Settings_DrainAbove" xml:space="preserve"><value>Scarica sopra l&#x27;indice:</value></data>
   <data name="Settings_GuideObs_Check" xml:space="preserve"><value>Dichiara unsafe quando il canale di guida ammutolisce</value></data>
   <data name="Settings_GuideObs_Help" xml:space="preserve"><value>Sorveglia se PHD2 sta ancora consegnando frame di guida — non quanto guida bene (quello compete al motore). Le pause legittime (flip al meridiano, autofocus, stop manuale) PHD2 le annuncia e non generano mai allarmi; una camera di guida che si guasta smette invece di parlare, ed è quel silenzio che questo rileva. Un alert grave di PHD2 o una raffica di errori stella per-frame dimezzano l&#x27;attesa.</value></data>
-  <data name="Settings_GuideObs_Label" xml:space="preserve"><value>Safety Monitor — osservabilità del canale di guida</value></data>
+  <data name="Settings_GuideObs_Label" xml:space="preserve"><value>Condizioni del Cielo — osservabilità del canale di guida</value></data>
   <data name="Settings_GuidePolls" xml:space="preserve"><value>Silenzio → unsafe (poll):</value></data>
   <data name="Settings_GuidePolls_Tip" xml:space="preserve"><value>Poll di silenzio confermato prima di dichiarare UNSAFE. I frame che tornano a fluire scaricano il conteggio. Più alto = più tollerante ai buchi brevi.</value></data>
   <data name="Settings_GuideSilence" xml:space="preserve"><value>Soglia di silenzio (s):</value></data>
   <data name="Settings_GuideSilence_Tip" xml:space="preserve"><value>Secondi senza NESSUN frame di guida (né guida né tentativi di riaggancio) prima di considerare sospetto il canale. Si dimezza se corroborata da un alert grave di PHD2 o da errori stella per-frame ripetuti.</value></data>
-  <data name="Settings_Meridian_Label" xml:space="preserve"><value>Safety Monitor — protezione meridiano</value></data>
+  <data name="Settings_Meridian_Label" xml:space="preserve"><value>Condizioni del Cielo — protezione meridiano</value></data>
   <data name="Settings_Meridian_Check" xml:space="preserve"><value>Autorizza la manovra meccanica di flip durante un&#x27;attesa unsafe prolungata</value></data>
   <data name="Settings_Meridian_Help" xml:space="preserve"><value>Senza questa protezione, alla deadline del flip in unsafe NINA ferma il tracking — e nulla lo riavvia mai: la stella di guida deriva, le pose-sonda strisciano e il monitor perde tutti gli occhi con cui decide. La notte finisce lì anche se il cielo torna sereno (verificato il 19/7). Questa finestra riporta brevemente safe per far eseguire il solo flip, poi ripristina subito l&#x27;attesa unsafe: protegge la capacità del monitor di continuare a osservare, non giudica mai il cielo. Da rivalutare solo se altri dispositivi (tetto, cupola) consumeranno lo stato safe di questo monitor.</value></data>
   <data name="Settings_MeridianLead" xml:space="preserve"><value>Apri finestra (min prima della deadline):</value></data>
@@ -77,6 +78,8 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Settings_ProbeGate_Check" xml:space="preserve"><value>Differisci le pose-sonda finché il canale guida è instabile</value></data>
   <data name="Settings_ProbeGate_Help" xml:space="preserve"><value>Una sonda da 300 s merita un canale guida stabile. L&#x27;Agente valuta la stabilità da più segnali indipendenti insieme (frame che fluiscono, stella mantenuta nel tempo, errori stella per-frame, alert PHD2): un riaggancio momentaneo non basta. Finché il canale è dichiarato non pronto, la sonda a tempo slitta — mai oltre un tetto rigido di 15 minuti, così il cielo viene comunque controllato. Le sonde da recovery-hint non vengono mai ritardate.</value></data>
   <data name="Settings_SkyDegrade_Check" xml:space="preserve"><value>Dichiara unsafe prima, quando la stella di guida si spegne</value></data>
+  <data name="Settings_SkyDegrade_Polls" xml:space="preserve"><value>Stella di guida spenta → unsafe (poll):</value></data>
+  <data name="Settings_Tip_SkyDegradePolls" xml:space="preserve"><value>Per quanto tempo il canale guida deve continuare a vedere la stella spenta prima di dichiarare UNSAFE da solo. Volutamente SEPARATO dall&#x27;impostazione qui sopra: quella misura per quanto il cielo resta brutto secondo la camera di ripresa, questa misura quanto in fretta reagisce il canale guida. Alzare l&#x27;una non deve rallentare l&#x27;altra. 1 poll = l&#x27;intervallo di controllo (default 15 s).</value></data>
   <data name="Settings_SkyDegrade_Help" xml:space="preserve"><value>La stella di guida viene campionata ogni pochi secondi, la camera di ripresa solo a fine posa. Quando arrivano le nubi il canale guida se ne accorge minuti prima del light successivo — e nel frattempo la sequenza continua a esporre pose che finiranno scartate. Con questa opzione attiva, un crollo sostenuto del segnale della stella di guida conta subito verso l'unsafe. Può solo avvicinare l'unsafe, mai il safe: una stella sola può testimoniare che il cielo è peggiorato, non che il campo è tornato buono — quello resta compito della posa di verifica.</value></data>
   <data name="Settings_Index_Check" xml:space="preserve"><value>Usa la persistenza sull&#x27;indice di trasparenza (consigliato)</value></data>
   <data name="Settings_Index_Help" xml:space="preserve"><value>Accumula il degrado quando l&#x27;indice di trasparenza è basso e lo scarica quando il cielo è sereno; i rimbalzi brevi in HAZE non azzerano più il timer nubi. Deselezionato = logica precedente (poll CLOUD consecutivi sullo stato discreto).</value></data>
@@ -88,15 +91,15 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Settings_Lifecycle_Label" xml:space="preserve"><value>Ciclo di vita dell&#x27;Agente</value></data>
   <data name="Settings_ManageExt_Check" xml:space="preserve"><value>Gestisci anche un Agente non avviato dal plugin</value></data>
   <data name="Settings_ManageExt_Help" xml:space="preserve"><value>Attivo (default): alla chiusura di NINA il plugin spegne con grazia qualunque Agente raggiungibile — anche se non l&#x27;ha avviato lui — così la baseline PHD2 viene sempre ripristinata. Disattivalo se usi l&#x27;Agente standalone e vuoi che sopravviva a NINA. Nota: per un Agente esterno non esiste handle di processo — se si blocca, ripulisce solo l&#x27;orphan recovery dell&#x27;Agente al prossimo avvio.</value></data>
-  <data name="Settings_Recovery_Body" xml:space="preserve"><value>Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizioni sono unsafe scatta pose di verifica alla cadenza configurata (o prima, sul suggerimento dalla SNR di guida) e termina da sola quando il Safety Monitor torna SAFE — la ripresa riparte automaticamente. Non servono altri contenitori né istruzioni Fotocamera.</value></data>
+  <data name="Settings_Recovery_Body" xml:space="preserve"><value>Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizioni sono unsafe scatta pose di verifica alla cadenza configurata (o prima, sul suggerimento dalla SNR di guida) e termina da sola quando il monitor torna SAFE — la ripresa riparte automaticamente. Non servono altri contenitori né istruzioni Fotocamera.</value></data>
   <data name="Settings_Recovery_Intro" xml:space="preserve"><value>Per far riprendere la sessione da sola dopo le nubi, aggiungi UNA istruzione alla tua Sequenza Avanzata:</value></data>
   <data name="Settings_Recovery_Title" xml:space="preserve"><value>Recupero automatico dalle nubi — configurazione della sequenza</value></data>
   <data name="Settings_SavedAuto" xml:space="preserve"><value>Le impostazioni vengono salvate automaticamente.</value></data>
   <data name="Settings_StalePolls" xml:space="preserve"><value>Stantia → unsafe (poll):</value></data>
   <data name="Settings_Stale_Check" xml:space="preserve"><value>Dichiara unsafe su telemetria stantia con cielo degradato</value></data>
-  <data name="Settings_Stale_Help" xml:space="preserve"><value>Se la telemetria NINA smette di arrivare (oltre la finestra adattiva di freschezza — il normale intervallo tra le pose NON fa scattare nulla) durante una sessione attiva e con l&#x27;ultimo cielo noto degradato, il Safety Monitor escala verso unsafe invece di disattivare in silenzio la sicurezza nubi.</value></data>
-  <data name="Settings_StarLost_Help" xml:space="preserve"><value>Per quanto tempo STAR_LOST deve persistere prima che il Safety Monitor dichiari unsafe. Default 5 minuti (300). Valori ammessi: 30–1800. Valori più alti riducono i falsi positivi al prezzo di un riconoscimento più lento; valori più bassi rischiano di scattare su STAR_LOST transitori che l&#x27;Agente avrebbe recuperato.</value></data>
-  <data name="Settings_StarLost_Label" xml:space="preserve"><value>Safety Monitor — consolidamento STAR_LOST (secondi)</value></data>
+  <data name="Settings_Stale_Help" xml:space="preserve"><value>Se la telemetria NINA smette di arrivare (oltre la finestra adattiva di freschezza — il normale intervallo tra le pose NON fa scattare nulla) durante una sessione attiva e con l&#x27;ultimo cielo noto degradato, il monitor escala verso unsafe invece di disattivare in silenzio la sicurezza nubi.</value></data>
+  <data name="Settings_StarLost_Help" xml:space="preserve"><value>Per quanto tempo STAR_LOST deve persistere prima che il monitor dichiari unsafe. Default 5 minuti (300). Valori ammessi: 30–1800. Valori più alti riducono i falsi positivi al prezzo di un riconoscimento più lento; valori più bassi rischiano di scattare su STAR_LOST transitori che l&#x27;Agente avrebbe recuperato.</value></data>
+  <data name="Settings_StarLost_Label" xml:space="preserve"><value>Condizioni del Cielo — consolidamento STAR_LOST (secondi)</value></data>
   <data name="Settings_Telemetry_Check" xml:space="preserve"><value>Inoltro telemetria attivo</value></data>
   <data name="Settings_Telemetry_Help" xml:space="preserve"><value>A ogni posa salvata invia all&#x27;Agente HFR, conteggio stelle e statistiche immagine (HTTP POST). Opzionale: se l&#x27;Agente è offline non succede nulla e NINA non viene mai disturbata. Disattiva per non inviare alcun dato.</value></data>
   <data name="Settings_Telemetry_Label" xml:space="preserve"><value>Inoltra le metriche per-posa di NINA all&#x27;Agente</value></data>
@@ -107,18 +110,18 @@ Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizi
   <data name="Settings_Tip_DrainAbove" xml:space="preserve"><value>Finché l&#x27;indice è pari o superiore a questo valore, il degrado accumulato si scarica; tra le due soglie (HAZE) nulla cambia. Più basso = recupero del safe più rapido.</value></data>
   <data name="Settings_Tip_StalePolls" xml:space="preserve"><value>Poll con telemetria stantia (oltre la finestra adattiva di freschezza — il normale intervallo tra le pose non conta mai) prima dell&#x27;UNSAFE. Escala solo con sicurezza nubi attiva, sessione attiva e ultimo cielo noto degradato.</value></data>
   <data name="Settings_Title" xml:space="preserve"><value>Adaptive Agent for PHD2 — Impostazioni</value></data>
-  <data name="Toast_AgentLostUnsafe" xml:space="preserve"><value>Adaptive Agent: Agente irraggiungibile durante una sessione attiva — Safety Monitor unsafe</value></data>
-  <data name="Toast_AgentUnreachable" xml:space="preserve"><value>Adaptive Agent: Agente non raggiungibile — il Safety Monitor vigila (unsafe se persiste durante una sessione attiva)</value></data>
+  <data name="Toast_AgentLostUnsafe" xml:space="preserve"><value>Adaptive Agent: Agente irraggiungibile durante una sessione attiva — dichiarato unsafe</value></data>
+  <data name="Toast_AgentUnreachable" xml:space="preserve"><value>Adaptive Agent: Agente non raggiungibile — il monitor vigila (unsafe se persiste durante una sessione attiva)</value></data>
   <data name="Toast_AutoLaunchError" xml:space="preserve"><value>Errore nell&#x27;avvio automatico dell&#x27;Adaptive Agent: {0}</value></data>
   <data name="Toast_AutoLaunchFailed" xml:space="preserve"><value>Avvio automatico dell&#x27;Adaptive Agent non riuscito: {0}</value></data>
-  <data name="Toast_CloudsUnsafe" xml:space="preserve"><value>Adaptive Agent: nubi persistenti (trasparenza NINA) — Safety Monitor unsafe</value></data>
-  <data name="Toast_GuideUnobservable" xml:space="preserve"><value>Adaptive Agent: il canale di guida ha smesso di rispondere mentre la guida era attesa — Safety Monitor unsafe. Controlla camera di guida / USB.</value></data>
+  <data name="Toast_CloudsUnsafe" xml:space="preserve"><value>Adaptive Agent: nubi persistenti (trasparenza NINA) — dichiarato unsafe</value></data>
+  <data name="Toast_GuideUnobservable" xml:space="preserve"><value>Adaptive Agent: il canale di guida ha smesso di rispondere mentre la guida era attesa — dichiarato unsafe. Controlla camera di guida / USB.</value></data>
   <data name="Toast_MeridianOpen" xml:space="preserve"><value>Adaptive Agent: finestra di protezione meridiano aperta — autorizzata la sola manovra di flip. I controlli sul cielo restano attivi; la sequenza si ri-parcheggia subito dopo il flip.</value></data>
   <data name="Toast_MeridianFlipDone" xml:space="preserve"><value>Adaptive Agent: meridian flip completato — finestra chiusa, attesa unsafe ripristinata finché il cielo non torna davvero.</value></data>
   <data name="Toast_MeridianTimeout" xml:space="preserve"><value>Adaptive Agent: finestra di protezione meridiano scaduta senza flip (trigger assente o disattivato?). Al ritorno del sereno riattiva manualmente il tracking — NINA eseguirà poi il flip da sola.</value></data>
   <data name="Toast_ProbeFailed" xml:space="preserve"><value>Adaptive Agent: posa di verifica non riuscita ({0}) — continuerò a riprovare finché unsafe</value></data>
-  <data name="Toast_RecoveredSafe" xml:space="preserve"><value>Adaptive Agent: condizioni ripristinate — Safety Monitor safe</value></data>
-  <data name="Toast_StaleUnsafe" xml:space="preserve"><value>Adaptive Agent: telemetria diventata stantia con cielo degradato — Safety Monitor unsafe</value></data>
-  <data name="Toast_StarLostUnsafe" xml:space="preserve"><value>Adaptive Agent: guida persa da {0} — Safety Monitor unsafe</value></data>
+  <data name="Toast_RecoveredSafe" xml:space="preserve"><value>Adaptive Agent: condizioni ripristinate — dichiarato safe</value></data>
+  <data name="Toast_StaleUnsafe" xml:space="preserve"><value>Adaptive Agent: telemetria diventata stantia con cielo degradato — dichiarato unsafe</value></data>
+  <data name="Toast_StarLostUnsafe" xml:space="preserve"><value>Adaptive Agent: guida persa da {0} — dichiarato unsafe</value></data>
   <data name="Unit_Minutes" xml:space="preserve"><value>{0} minuti</value></data>
 </root>

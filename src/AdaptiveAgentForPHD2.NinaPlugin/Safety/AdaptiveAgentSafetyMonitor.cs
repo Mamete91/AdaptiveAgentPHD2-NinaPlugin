@@ -51,15 +51,18 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         }
 
         // --- Identita' del driver (vedi pre-flight: stesse convenzioni del SafetyMonitorSimulator di NINA) ---
-        public string Name => "Adaptive Agent for PHD2 — Guide Safety";
+        // §78 — il nome descrive cio' che il dispositivo MISURA (le condizioni del
+        // cielo), non una delle sue conseguenze (il gate di sicurezza). NINA salva il
+        // device per Id (stabile, hard-coded sotto): il rename non rompe i profili.
+        public string Name => Loc.T("Monitor_Name");
         public string DisplayName => Name;
         // §58-ter — descrizione = manuale d'uso in miniatura: COSA fa + COME si monta la
         // sequenza per il recovery automatico (§57-bis). E' una string del contratto
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.11.0.0 — virtual Safety Monitor";
-        public string DriverVersion => "1.11.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.12.0.0 — sky conditions monitor (virtual safety device)";
+        public string DriverVersion => "1.12.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";

@@ -1,6 +1,6 @@
 # Adaptive Agent for PHD2 — Dashboard (N.I.N.A. plugin)
 
-A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session. Its centerpiece is a virtual **Safety Monitor** device — N.I.N.A.'s native `ISafetyMonitor` interface, the same role an ASCOM safety monitor plays — providing one continuously evaluated **SAFE/UNSAFE verdict on acquisition quality** (guide star, N1 sky transparency, telemetry freshness, Agent health). **N.I.N.A.'s Sequence Engine always owns the sequence lifecycle**: the monitor reports, it never orchestrates. Around that state the plugin ships the recommended **Recovery probe** workflow to resume the session after clouds, a dockable dashboard panel, per-exposure telemetry forwarding, and automatic Agent lifecycle management. UI in English or Italiano.
+A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session. Its centerpiece is a virtual **Sky Conditions monitor** — exposed through N.I.N.A.'s native `ISafetyMonitor` interface, the same role an ASCOM safety monitor plays — providing one continuously evaluated **SAFE/UNSAFE verdict on acquisition quality** (guide star, N1 sky transparency, telemetry freshness, Agent health). **N.I.N.A.'s Sequence Engine always owns the sequence lifecycle**: the monitor reports, it never orchestrates. Around that state the plugin ships the recommended **Recovery probe** workflow to resume the session after clouds, a dockable dashboard panel, per-exposure telemetry forwarding, and automatic Agent lifecycle management. UI in English or Italiano.
 
 The Adaptive Agent itself is a separate, standalone application. This plugin is the bridge between it and N.I.N.A.
 
@@ -30,8 +30,8 @@ Renders the Agent dashboard inside N.I.N.A. through WebView2, with an online/off
 ### 2. Per-exposure N.I.N.A. telemetry (N.I.N.A. → Agent)
 On every saved light frame the plugin forwards N.I.N.A.'s image metrics to the Agent (`POST /nina/telemetry`): HFR, HFR standard deviation, star count, image statistics (mean/median/stdev ADU), exposure duration and filter. Fire-and-forget with a 3-second timeout and no retries. The Agent uses these metrics to recognize **sky transparency** (CLEAR / HAZE / CLOUD) independently of guiding.
 
-### 3. Safety Monitor (Agent → N.I.N.A.)
-A virtual **Safety Monitor** device that N.I.N.A. can use like any other safety device. It reports **unsafe** when:
+### 3. Sky Conditions monitor (Agent → N.I.N.A.)
+A virtual device that N.I.N.A. can use like any other safety device — it appears under the *Safety Monitor* equipment category, which is N.I.N.A.'s name for the slot. It measures observing conditions continuously; reporting **unsafe** is one of the consequences, not the whole role. It reports **unsafe** when:
 
 - the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes);
 - N.I.N.A. sky transparency has stayed **degraded persistently** — an index-based leaky accumulator: clear sky drains the count, brief HAZE bounces are neutral and never reset it (v1.5);
@@ -43,7 +43,7 @@ A virtual **Safety Monitor** device that N.I.N.A. can use like any other safety 
 **This device is the plugin's core.** Any safety-aware N.I.N.A. construct can consume its state — the global safety policy, *Wait until safe*, the *Loop while safe / Loop while unsafe* conditions, or your own *Trigger On Unsafe* workflow. The Recovery probe below is the **recommended** consumer for unattended recovery, not the only one.
 
 ### 4. Recovery probe — the session resumes on its own (sequencer instruction)
-One workflow built **on top of** the Safety Monitor's state — the recommended one for unattended recovery. The **"Recovery probe (Adaptive Agent)"** instruction turns a clouded-out night into a self-recovering one. Recommended setup (one instruction, no extra containers):
+One workflow built **on top of** the monitor's state — the recommended one for unattended recovery. The **"Recovery probe (Adaptive Agent)"** instruction turns a clouded-out night into a self-recovering one. Recommended setup (one instruction, no extra containers):
 
 ```
 Trigger On Unsafe
@@ -53,7 +53,7 @@ Trigger On Unsafe
 
 While conditions are unsafe it takes ONE unguided verification exposure — replicating your last light frame (exposure/gain/offset/binning) — at a configurable cadence (probe timeout, fail-safe) or earlier when the Agent's guide-star SNR hints the sky is recovering, never more often than the minimum interval. The saved probe refreshes the Agent's transparency index — **the probe image is the only path back to safe** — and the loop ends on its own the moment the monitor returns SAFE, letting the sequence resume unattended.
 
-**Design guarantee — the Sequence Engine stays in charge.** The recovery loop runs entirely under N.I.N.A.'s own cancellation scope (triggers execute under the running container's linked cancellation chain — verified in the N.I.N.A. sources): when the sequence ends for any reason — end time reached, sun/moon/altitude limits (condition watchdogs interrupt within seconds), manual stop, N.I.N.A. closing — the probe loop is cancelled immediately, even mid-exposure. The plugin has no sequencer-control API at all, so once a sequence is over, a later return to SAFE changes a device flag and nothing else. The Safety Monitor protects an *active* sequence; it never becomes a second orchestrator of the session.
+**Design guarantee — the Sequence Engine stays in charge.** The recovery loop runs entirely under N.I.N.A.'s own cancellation scope (triggers execute under the running container's linked cancellation chain — verified in the N.I.N.A. sources): when the sequence ends for any reason — end time reached, sun/moon/altitude limits (condition watchdogs interrupt within seconds), manual stop, N.I.N.A. closing — the probe loop is cancelled immediately, even mid-exposure. The plugin has no sequencer-control API at all, so once a sequence is over, a later return to SAFE changes a device flag and nothing else. The monitor protects an *active* sequence; it never becomes a second orchestrator of the session.
 
 ### 5. Agent lifecycle (on by default since v1.7)
 The plugin **auto-launches the Agent** when N.I.N.A. starts (once the launcher path is configured) and **shuts it down gracefully** when N.I.N.A. closes — PHD2 baseline restored via the Agent's `POST /shutdown`, whose 200 response is a real contract: the Agent self-terminates via an internal watchdog even if its main loop is stuck, so N.I.N.A. closes instantly. Both behaviors can be disabled in the plugin options; by default the plugin only manages the Agent it launched or any reachable one (configurable).
@@ -132,7 +132,7 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 2. Set the path to the Agent's `Avvia.bat` in the plugin settings (first time only).
 3. From then on the Agent starts with N.I.N.A. and stops (baseline restored) when N.I.N.A. closes. The **Launch Adaptive Agent** button remains as a manual fallback.
 4. Within a few seconds the badge turns to *online* and the dashboard loads.
-5. Connect the **Adaptive Agent for PHD2 — Guide Safety** device under *Equipment → Safety Monitor* and add the **Recovery probe** instruction inside a *Trigger On Unsafe* (see function 4) for unattended cloud recovery.
+5. Connect the **Adaptive Agent for PHD2 — Sky Conditions** device under *Equipment → Safety Monitor* and add the **Recovery probe** instruction inside a *Trigger On Unsafe* (see function 4) for unattended cloud recovery.
 
 ---
 
@@ -140,6 +140,8 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 
 | Version | Highlights |
 |---------|-----------|
+| **1.12** | Renamed to **Sky Conditions** — the device measures observing conditions; reporting unsafe is one consequence, not the whole role (N.I.N.A. stores the device by Id, so existing profiles keep working) · **separate fast and slow paths**: the guide channel (~3 s, reacts to *how fast* the sky degrades) and the imaging camera (~1 exposure, confirms *how long* it stays degraded) now have independent accumulators and thresholds, so tuning one no longer moves the other |
+| 1.11 | Meridian protection window · sky-degradation evidence from the guide channel · probe channel-ready gate |
 | **1.7** | Agent lifecycle (auto-launch + graceful shutdown with baseline restore, on by default) · self-contained **Recovery probe** loop · instant N.I.N.A. close (Agent self-kill watchdog) · UI localized EN/IT with live switch · parameter tooltips |
 | 1.6 | Cloud-recovery sequencer instruction (S1 timeout fail-safe + S2 guide-SNR hint) |
 | 1.5 | Safety Monitor hardened after field validation: index-based cloud persistence (leaky accumulator), stale telemetry → unsafe, Agent loss → unsafe — never fails toward safe |

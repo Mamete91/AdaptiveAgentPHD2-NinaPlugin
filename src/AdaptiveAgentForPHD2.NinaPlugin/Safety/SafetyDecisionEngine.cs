@@ -58,7 +58,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private bool _starLostUnsafe;
 
         // CLOUD — logica a indice (leaky) e logica legacy condividono il latch.
-        private double _cloudDegradation;    // accumulatore leaky [0, CloudUnsafePolls]
+        private double _cloudDegradation;    // §55 percorso LENTO  — camera di ripresa, [0, CloudUnsafePolls]
+        private double _fastDegradation;     // §79 percorso RAPIDO — canale guida,     [0, SkyDegradingUnsafePolls]
         private int _cloudStreakPolls;       // solo logica legacy
         private int _clearStreakPolls;       // solo logica legacy
         private bool _cloudUnsafe;
@@ -93,6 +94,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _normalStreakTicks = 0;
             _starLostUnsafe = false;
             _cloudDegradation = 0;
+            _fastDegradation = 0;
             _cloudStreakPolls = 0;
             _clearStreakPolls = 0;
             _cloudUnsafe = false;
@@ -303,16 +305,46 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             return Transition(prevUnsafe, prevStar, prevCloud, prevStale, prevLost, prevGuide);
         }
 
-        /// <summary>Fix Bug A: accumulatore leaky sull'indice. HAZE (zona intermedia) e' NEUTRA.</summary>
+        /// <summary>
+        /// Fix Bug A: accumulatore leaky sull'indice. HAZE (zona intermedia) e' NEUTRA.
+        ///
+        /// §79 — DUE PERCORSI SEPARATI per la stessa informazione (il cielo peggiora),
+        /// con accumulatori e soglie indipendenti:
+        ///
+        ///   RAPIDO  (§76)  canale guida / PHD2, ~3 s   -> "sta succedendo adesso"
+        ///   LENTO   (§55)  camera di ripresa, ~300 s   -> "dura da abbastanza tempo"
+        ///
+        /// Prima condividevano accumulatore e tetto: alzare la soglia di PERSISTENZA
+        /// (CloudUnsafePolls) rallentava anche il sensore RAPIDO, cioe' proprio cio' per
+        /// cui il §76 era nato — anticipare la camera. Sono dimensioni diverse e ora
+        /// hanno contatori diversi; l'unsafe e' l'OR dei due.
+        ///
+        /// Restano invariate le due asimmetrie del §76:
+        ///   • il canale guida puo' BLOCCARE il drenaggio del percorso lento (evidenza
+        ///     negativa fresca contro evidenza positiva vecchia), mai provocarlo;
+        ///   • il rientro verso SAFE lo concede SOLO la camera di ripresa. La stella di
+        ///     guida e' UNA: puo' dire "qui e' brutto" (le nubi sono grandi), non "il
+        ///     campo e' buono" — uno squarcio sopra la stella non salva il resto. Per
+        ///     questo entrambi gli accumulatori drenano sull'evidenza della camera.
+        /// </summary>
         private void EvaluateCloudByIndex(AgentStatusSnapshot snap, ISafetySettings settings)
         {
             double below = settings.CloudIndexAccumulateBelow;
             double above = Math.Max(settings.CloudIndexDrainAbove, below + 0.01);
-            int cap = Math.Max(1, settings.CloudUnsafePolls);
-            double drainRate = Math.Max(1.0,
-                (double)cap / Math.Max(1, settings.ClearSafePolls));
+            int slowCap = Math.Max(1, settings.CloudUnsafePolls);
+            int fastCap = Math.Max(1, settings.SkyDegradingUnsafePolls);
+            int clearPolls = Math.Max(1, settings.ClearSafePolls);
 
-            bool accumulate, drain;
+            // Il drenaggio si scala sul PROPRIO tetto: cosi' ClearSafePolls conserva il
+            // suo significato ("N poll di cielo sereno per rientrare") su entrambi i
+            // percorsi, quale che sia il rapporto fra le due soglie.
+            double slowDrain = Math.Max(1.0, (double)slowCap / clearPolls);
+            double fastDrain = Math.Max(1.0, (double)fastCap / clearPolls);
+
+            bool fastEvidence = settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading;
+
+            // ---- evidenza LENTA: solo dalla camera di ripresa ----
+            bool accumulate = false, drain = false;
             if (snap.TransparencyIndex is double idx)
             {
                 accumulate = idx < below;
@@ -325,51 +357,39 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 accumulate = st == "CLOUD";
                 drain = st == "CLEAR";
             }
-            else if (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)
+            else if (!fastEvidence)
             {
-                // Nessun dato di trasparenza ma il canale guida vede il degrado:
-                // e' proprio il caso in cui il sensore veloce e' l'unico che parla.
-                accumulate = true;
-                drain = false;
+                return; // nessun dato di trasparenza e nessun segnale rapido: non toccare nulla
             }
-            else
-            {
-                return; // nessun dato di trasparenza: non toccare nulla
-            }
+            // (nessun dato di trasparenza ma canale guida che vede il degrado: si prosegue
+            //  con accumulate/drain a false — lavora il solo percorso rapido, qui sotto.)
 
-            // §76 — SENSORE VELOCE accanto a quello lento. Il canale guida vede a
-            // 3 s, la camera di ripresa a 300 s: la notte del 4/8 la SNR di guida e'
-            // crollata alle 23:08 mentre N1 — fermo all'ultima posa buona — ha
-            // riconosciuto le nubi solo alle 23:14 (UNSAFE alle 23:16). Otto minuti
-            // di posa integralmente sotto le nubi.
-            //
-            // UNA SOLA DIREZIONE, ed e' il paletto centrale: questa evidenza puo'
-            // solo ACCUMULARE verso unsafe e IMPEDIRE il drain, MAI drenare verso
-            // safe. L'asimmetria e' deliberata su due argomenti indipendenti:
-            //   • costi: dichiarare unsafe presto costa una pausa, dichiararlo tardi
-            //     costa pose rovinate;
-            //   • fisica: la stella di guida e' UNA. Puo' dire "qui e' brutto" (le
-            //     nubi sono grandi, se coprono lei coprono il campo), non "il campo
-            //     e' buono" — uno squarcio sopra la stella non salva il resto. Per
-            //     quello serve la camera di ripresa: N1 e la posa-sonda.
-            if (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)
-            {
-                accumulate = true;
-                drain = false;
-            }
+            // Evidenza negativa FRESCA contro evidenza positiva VECCHIA: finche' il canale
+            // guida vede brutto, il percorso lento non scende. Non lo alimenta piu' (§79):
+            // ha il suo contatore.
+            if (fastEvidence) { drain = false; }
 
             if (accumulate)
             {
-                _cloudDegradation = Math.Min(cap, _cloudDegradation + 1.0);
+                _cloudDegradation = Math.Min(slowCap, _cloudDegradation + 1.0);
             }
             else if (drain)
             {
-                _cloudDegradation = Math.Max(0.0, _cloudDegradation - drainRate);
+                _cloudDegradation = Math.Max(0.0, _cloudDegradation - slowDrain);
             }
             // zona intermedia: nessuna variazione (il flicker CLOUD<->HAZE non azzera piu')
 
-            if (_cloudDegradation >= cap) { _cloudUnsafe = true; }
-            if (_cloudDegradation <= 0.0 && _cloudUnsafe) { _cloudUnsafe = false; }
+            if (fastEvidence)
+            {
+                _fastDegradation = Math.Min(fastCap, _fastDegradation + 1.0);
+            }
+            else if (drain)
+            {
+                _fastDegradation = Math.Max(0.0, _fastDegradation - fastDrain);
+            }
+
+            if (_cloudDegradation >= slowCap || _fastDegradation >= fastCap) { _cloudUnsafe = true; }
+            if (_cloudDegradation <= 0.0 && _fastDegradation <= 0.0 && _cloudUnsafe) { _cloudUnsafe = false; }
         }
 
         /// <summary>Logica legacy pre-fix (kill-switch): poll consecutivi sullo stato discreto.</summary>
@@ -440,6 +460,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 $"reachable={snap.AgentReachable} guiding={snap.GuidingState ?? "-"} " +
                 $"transp={snap.TransparencyState ?? "-"} idx={idx} fresh={snap.TransparencyFresh} age={age}s | " +
                 $"degr={_cloudDegradation.ToString("0.#", ic)}/{settings.CloudUnsafePolls} " +
+                $"fast={_fastDegradation.ToString("0.#", ic)}/{settings.SkyDegradingUnsafePolls} " +
                 $"starlost={_starLostStreakTicks} stale={_staleStreakPolls}/{settings.StaleUnsafePolls} " +
                 $"lost={_agentLostStreakPolls}/{settings.AgentLostUnsafePolls} " +
                 $"guide[age={snap.GuideFrameAgeS?.ToString("0", ic) ?? "-"}s exp={B(snap.GuidingExpected)} " +

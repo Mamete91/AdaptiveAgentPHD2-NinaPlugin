@@ -44,5 +44,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // cielo peggiorare mentre N1 (300 s) e' ancora fermo sull'ultima posa buona.
         // Mai il contrario: verso SAFE il giudice resta la posa-sonda.
         bool SkyDegradingAccumulateEnabled { get; }
+
+        /// <summary>§79 — soglia di PERSISTENZA del percorso RAPIDO, indipendente da
+        /// CloudUnsafePolls (che governa il percorso lento). Separarle e' il punto:
+        /// tarare la persistenza del cielo non deve rallentare la reazione rapida.</summary>
+        int SkyDegradingUnsafePolls { get; }
     }
 }
