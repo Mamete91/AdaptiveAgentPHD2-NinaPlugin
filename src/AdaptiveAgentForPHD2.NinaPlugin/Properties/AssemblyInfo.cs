@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.12.0.0")]
-[assembly: AssemblyFileVersion("1.12.0.0")]
+[assembly: AssemblyVersion("1.12.1.0")]
+[assembly: AssemblyFileVersion("1.12.1.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -28,20 +28,49 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyMetadata("FeaturedImageURL",      "")]
 [assembly: AssemblyMetadata("ChangelogURL",          "")]
 [assembly: AssemblyMetadata("LongDescription",
-    "Integrates the Adaptive Agent for PHD2 into N.I.N.A.: a dockable panel embedding the " +
-    "Agent web dashboard (http://127.0.0.1:8080) via WebView2, with an online/offline status " +
-    "badge and a 'Launch Adaptive Agent' button. Forwards N.I.N.A. per-exposure metrics (HFR, " +
-    "star count, image statistics) to the Agent on every saved light frame — optional and " +
-    "graceful: if the Agent is offline, N.I.N.A. is never disturbed. Provides a virtual Sky Conditions " +
-    "Monitor that reports unsafe on sustained STAR_LOST, persistent sky-transparency degradation " +
-    "(index-based, v1.5), stale telemetry under a degraded sky, or Agent loss during an active " +
-    "session — the monitor only reports: N.I.N.A.'s Sequence Engine always stays in charge of " +
-    "the sequence. Adds the self-contained 'Recovery probe (Adaptive Agent)' sequencer instruction " +
-    "(v1.7): placed alone inside Trigger On Unsafe, it loops while conditions are unsafe and " +
-    "takes unguided verification exposures replicating the interrupted light — on probe timeout " +
-    "(fail-safe) or earlier when the guide-star SNR hints the sky is recovering; the probe image " +
-    "(N1) remains the only path back to safe, and the loop ends on its own once the monitor " +
-    "returns SAFE. Owns the Agent lifecycle (v1.7, on by default): auto-launches the Agent when " +
-    "NINA starts and shuts it down gracefully on close (baseline restore via POST /shutdown, " +
-    "process-tree fallback). Plugin UI in English or Italiano (follows N.I.N.A. by default, " +
-    "switchable live). All communication is local (localhost); no external services.")]
+    "Integrates the Adaptive Agent for PHD2 into N.I.N.A. The Agent tunes PHD2 guiding in real " +
+    "time; this plugin gives it eyes on the imaging session and a voice inside the sequencer." +
+    "\n\n" +
+    "DOCKABLE PANEL - embeds the Agent web dashboard (http://127.0.0.1:8080) via WebView2, with " +
+    "an online/offline badge and a Launch Adaptive Agent button. The dashboard reads at a glance: " +
+    "five fixed slots (adaptive control, guiding, sky, session, recovery) say what is happening, " +
+    "contextual icons appear only when something needs attention, and the numbers with their " +
+    "source live in the tooltips." +
+    "\n\n" +
+    "TELEMETRY - per-exposure metrics from N.I.N.A. (HFR, star count, image statistics) are " +
+    "forwarded to the Agent on every saved light frame. Optional and graceful: if the Agent is " +
+    "offline, N.I.N.A. is never disturbed." +
+    "\n\n" +
+    "SKY CONDITIONS MONITOR - a virtual device that measures observing conditions continuously " +
+    "and reports them through the N.I.N.A. safety-device interface (it appears under the Safety " +
+    "Monitor equipment category, which is the N.I.N.A. name for the slot, not this monitor's " +
+    "role). It reports unsafe on any of six independent conditions: sustained STAR_LOST; " +
+    "persistent sky-transparency degradation measured on the imaging camera star count; a " +
+    "sustained collapse of the guide-star signal, which the guide channel sees minutes before the " +
+    "next light frame could; stale telemetry under an already degraded sky; loss of the Agent " +
+    "during an active session; and a guide channel gone silent while guiding was expected. Fast " +
+    "evidence (guide channel, seconds) and persistent evidence (imaging camera, one exposure) " +
+    "have separate accumulators and separate thresholds, so tuning one never slows the other. " +
+    "Recovery toward safe is granted only by the imaging camera: one guide star can testify that " +
+    "the sky went bad, never that the whole field came back. The monitor only ever reports - the " +
+    "N.I.N.A. Sequence Engine always stays in charge of the sequence." +
+    "\n\n" +
+    "MERIDIAN PROTECTION - a bounded window (on by default) that lets the mechanical flip run at " +
+    "its deadline even while conditions are unsafe, then restores the unsafe hold immediately. " +
+    "Without it, N.I.N.A. stops tracking at the deadline and nothing ever restarts it: the guide " +
+    "star drifts away and the night ends there, even if the sky clears. The window authorises the " +
+    "manoeuvre only; it never passes judgement on the sky." +
+    "\n\n" +
+    "SELF-RECOVERY - the self-contained Recovery probe (Adaptive Agent) sequencer instruction " +
+    "turns a clouded-out night into a self-recovering one. Placed alone inside Trigger On Unsafe, " +
+    "it loops while conditions are unsafe and takes unguided verification exposures replicating " +
+    "the interrupted light: on probe timeout, or earlier when the guide-star signal hints the sky " +
+    "is recovering, and deferred while the guide channel is not yet stable enough for the result " +
+    "to mean anything. The probe image remains the only path back to safe, and the loop ends on " +
+    "its own once the monitor returns safe." +
+    "\n\n" +
+    "AGENT LIFECYCLE - on by default: auto-launches the Agent when N.I.N.A. starts and shuts it " +
+    "down gracefully on close, restoring the PHD2 baseline." +
+    "\n\n" +
+    "Plugin UI in English or Italiano (follows N.I.N.A. by default, switchable live). All " +
+    "communication is local; no external services.")]
