@@ -132,7 +132,7 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 2. Set the path to the Agent's `Avvia.bat` in the plugin settings (first time only).
 3. From then on the Agent starts with N.I.N.A. and stops (baseline restored) when N.I.N.A. closes. The **Launch Adaptive Agent** button remains as a manual fallback.
 4. Within a few seconds the badge turns to *online* and the dashboard loads.
-5. Connect the **Adaptive Agent for PHD2 — Sky Conditions** device under *Equipment → Safety Monitor* and add the **Recovery probe** instruction inside a *Trigger On Unsafe* (see function 4) for unattended cloud recovery.
+5. Extract the Agent package anywhere, point *Agent launcher path (Avvia.bat)* at its `Avvia.bat` (re-select it after every Agent upgrade — the saved path still points at the old folder), then connect the **Adaptive Agent for PHD2 — Sky Conditions** device under *Equipment → Safety Monitor* and add the **Recovery probe** instruction inside a *Trigger On Unsafe* (see function 4) for unattended cloud recovery.
 
 ---
 
