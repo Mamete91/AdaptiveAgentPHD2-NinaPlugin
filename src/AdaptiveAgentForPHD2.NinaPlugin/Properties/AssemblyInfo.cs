@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.12.3.0")]
-[assembly: AssemblyFileVersion("1.12.3.0")]
+[assembly: AssemblyVersion("1.12.4.0")]
+[assembly: AssemblyFileVersion("1.12.4.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---

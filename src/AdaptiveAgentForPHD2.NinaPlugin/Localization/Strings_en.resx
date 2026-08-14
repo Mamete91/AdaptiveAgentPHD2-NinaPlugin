@@ -22,18 +22,18 @@ Use the “Launch Adaptive Agent” button above (after setting the launcher pat
   <data name="Launch_NotConfigured" xml:space="preserve"><value>Path to Avvia.bat is not set. Configure it in the plugin settings.</value></data>
   <data name="Launch_Started" xml:space="preserve"><value>Process started. The Agent will be ready in a few seconds.</value></data>
   <data name="Monitor_Name" xml:space="preserve"><value>Adaptive Agent for PHD2 — Sky Conditions</value></data>
-  <data name="Monitor_Description" xml:space="preserve"><value>Continuously watches the sky conditions and the Adaptive Agent&#x27;s guiding reliability. (It appears under N.I.N.A.&#x27;s “Safety Monitor” equipment category — that is N.I.N.A.&#x27;s name for the device slot, not this monitor&#x27;s role.)
+  <data name="Monitor_Description" xml:space="preserve"><value>Continuously measures observing conditions and reports them to N.I.N.A. as a safety device. (It appears under the “Safety Monitor” category: that is N.I.N.A.&#x27;s name for the slot, not this monitor&#x27;s role.)
 
-Reports UNSAFE on any of six independent conditions: STAR_LOST persists beyond the configured timeout; sky transparency stays degraded (index-based persistence, measured on the imaging frames); the guide-star signal collapses in a sustained way — the guide channel sees it minutes before the imaging camera could; NINA telemetry goes stale while the sky was degraded; the Agent becomes unreachable during an active session; or the guide channel goes silent while guiding was expected. Recovery toward safe is granted only by the imaging camera: one guide star can testify that the sky went bad, never that the whole field came back. Losing reliable observation is always treated as a risk condition — never as &quot;safe&quot;.
+Reports UNSAFE on six independent conditions: sustained STAR_LOST; sky transparency degraded for a long time, measured on the imaging frames; a sustained collapse of the guide-star signal, which the guide channel sees minutes before the imaging camera could; NINA telemetry gone stale under a degraded sky; the Agent unreachable during an active session; the guide channel silent while guiding was expected. Recovery toward safe is granted only by the imaging camera.
 
-This monitor only reports SAFE/UNSAFE — N.I.N.A.&#x27;s Sequence Engine always owns the sequence: your end-of-sequence criteria (end time, dawn, altitude) always win, and any running recovery is cancelled automatically the moment the sequence ends. Any safety-aware construct can consume this state; the setup below is the recommended recovery workflow, not the only one.
-
-AUTOMATIC RECOVERY (recommended Advanced Sequencer setup):
+AUTOMATIC RECOVERY — recommended Advanced Sequencer setup:
   Trigger On Unsafe
    └ Before Waiting For Safety
       └ Recovery probe (Adaptive Agent)
 
-That single instruction is the complete recovery loop: while conditions are unsafe it automatically takes verification exposures (replicating your last light) at the configured cadence — or sooner when the Agent&#x27;s guide-star SNR hints the sky is recovering — and it ends on its own the moment this monitor returns SAFE, letting the sequence resume. No extra containers, loops or Camera instructions are needed (NINA rejects them inside the trigger anyway).</value></data>
+That single instruction is the complete recovery loop: while conditions are unsafe it takes verification exposures replicating your last light, and it ends on its own once the monitor returns SAFE.
+
+The monitor only reports: N.I.N.A.&#x27;s Sequence Engine stays in charge of the sequence, your end-of-sequence criteria always win, and any running recovery is cancelled the moment the sequence ends.</value></data>
   <data name="Probe_AutoTimeout" xml:space="preserve"><value>Auto cadence</value></data>
   <data name="Probe_AutoTimeout_Tip" xml:space="preserve"><value>Recommended. The probe cadence is derived from the Agent&#x27;s telemetry freshness window minus the probe exposure, so sky data never goes stale between probes — and it never waits more than 3 minutes (field-validated) when the window would allow a faster check. It adapts by itself to your sub length. Uncheck to force a fixed timeout in minutes.</value></data>
   <data name="Probe_FallbackExp" xml:space="preserve"><value>Fallback exposure (s)</value></data>

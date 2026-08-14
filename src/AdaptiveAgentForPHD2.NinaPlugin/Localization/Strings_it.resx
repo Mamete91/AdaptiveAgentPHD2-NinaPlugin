@@ -22,18 +22,18 @@ Usa il pulsante “Avvia Adaptive Agent” qui sopra (dopo aver impostato il per
   <data name="Launch_NotConfigured" xml:space="preserve"><value>Il percorso di Avvia.bat non è impostato. Configuralo nelle impostazioni del plugin.</value></data>
   <data name="Launch_Started" xml:space="preserve"><value>Processo avviato. L&#x27;Agente sarà pronto tra qualche secondo.</value></data>
   <data name="Monitor_Name" xml:space="preserve"><value>Adaptive Agent for PHD2 — Condizioni del Cielo</value></data>
-  <data name="Monitor_Description" xml:space="preserve"><value>Controlla in continuo le condizioni del cielo e l&#x27;affidabilità della guida dell&#x27;Adaptive Agent. (Compare nella categoria “Safety Monitor” dell&#x27;equipaggiamento di N.I.N.A.: è il nome che N.I.N.A. dà allo slot, non il ruolo di questo monitor.)
+  <data name="Monitor_Description" xml:space="preserve"><value>Misura in continuo le condizioni di osservazione e le riporta a N.I.N.A. come dispositivo di sicurezza. (Compare sotto la categoria “Safety Monitor”: è il nome che N.I.N.A. dà allo slot, non il ruolo di questo monitor.)
 
-Dichiara UNSAFE in sei casi indipendenti: STAR_LOST persiste oltre il timeout configurato; la trasparenza del cielo resta degradata (persistenza sull&#x27;indice, misurata sulle pose); il segnale della stella di guida crolla in modo sostenuto — il canale di guida se ne accorge minuti prima di quanto potrebbe la camera di ripresa; la telemetria NINA diventa stantia con cielo degradato; l&#x27;Agente diventa irraggiungibile durante una sessione attiva; oppure il canale di guida ammutolisce mentre la guida era attesa. Il rientro verso safe lo concede solo la camera di ripresa: una stella di guida sola può testimoniare che il cielo è peggiorato, non che il campo è tornato buono. La perdita di osservazione affidabile è sempre trattata come condizione di rischio — mai come &quot;sicura&quot;.
+Dichiara UNSAFE in sei casi indipendenti: STAR_LOST persistente; trasparenza del cielo degradata a lungo, misurata sulle pose; crollo sostenuto del segnale della stella di guida, che il canale di guida vede minuti prima della camera di ripresa; telemetria NINA stantia con cielo degradato; Agente irraggiungibile durante una sessione attiva; canale di guida ammutolito mentre la guida era attesa. Il rientro verso safe lo concede solo la camera di ripresa.
 
-Questo monitor si limita a segnalare SAFE/UNSAFE — il Sequence Engine di N.I.N.A. resta sempre il proprietario della sequenza: i tuoi criteri di fine (ora impostata, alba, altitudine) vincono sempre, e un recupero in corso viene annullato automaticamente nell&#x27;istante in cui la sequenza termina. Qualsiasi costrutto safety-aware può consumare questo stato; la configurazione qui sotto è il workflow di recupero consigliato, non l&#x27;unico.
-
-RECUPERO AUTOMATICO (configurazione consigliata della Sequenza Avanzata):
+RECUPERO AUTOMATICO — configurazione consigliata della Sequenza Avanzata:
   Trigger On Unsafe
    └ Before Waiting For Safety
       └ Recovery probe (Adaptive Agent)
 
-Quella singola istruzione è l&#x27;intero ciclo di recupero: finché le condizioni sono unsafe scatta automaticamente pose di verifica (replicando il tuo ultimo light) alla cadenza configurata — o prima, quando la SNR della stella di guida suggerisce che il cielo sta tornando — e termina da sola nell&#x27;istante in cui questo monitor torna SAFE, lasciando riprendere la sequenza. Non servono contenitori, cicli o istruzioni Fotocamera aggiuntivi (NINA li rifiuta comunque dentro il trigger).</value></data>
+Quell&#x27;unica istruzione è l&#x27;intero ciclo di recupero: finché le condizioni sono unsafe scatta pose di verifica che replicano il tuo ultimo light, e termina da sola quando il monitor torna SAFE.
+
+Il monitor si limita a segnalare: il Sequence Engine di N.I.N.A. resta padrone della sequenza, i tuoi criteri di fine vincono sempre e un recupero in corso viene annullato appena la sequenza termina.</value></data>
   <data name="Probe_AutoTimeout" xml:space="preserve"><value>Cadenza automatica</value></data>
   <data name="Probe_AutoTimeout_Tip" xml:space="preserve"><value>Consigliata. La cadenza della sonda si ricava dalla finestra di freschezza della telemetria dell&#x27;Agente meno la durata della posa, così tra una sonda e l&#x27;altra i dati sul cielo non diventano mai stantii — e non attende mai più di 3 minuti (valore validato sul cielo) quando la finestra consentirebbe un controllo più rapido. Si adatta da sé alla durata dei tuoi sub. Deseleziona per imporre un timeout fisso in minuti.</value></data>
   <data name="Probe_FallbackExp" xml:space="preserve"><value>Esposizione di riserva (s)</value></data>
