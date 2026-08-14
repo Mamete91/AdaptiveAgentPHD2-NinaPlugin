@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.12.2.0")]
-[assembly: AssemblyFileVersion("1.12.2.0")]
+[assembly: AssemblyVersion("1.12.3.0")]
+[assembly: AssemblyFileVersion("1.12.3.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -25,7 +25,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyMetadata("LicenseURL",            "https://raw.githubusercontent.com/Mamete91/AdaptiveAgentPHD2-NinaPlugin/master/LICENSE")]
 [assembly: AssemblyMetadata("Tags",                  "PHD2,Guiding,Dashboard,Adaptive Agent")]
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
-[assembly: AssemblyMetadata("FeaturedImageURL",      "")]
+[assembly: AssemblyMetadata("FeaturedImageURL",      "https://raw.githubusercontent.com/Mamete91/AdaptiveAgentPHD2-NinaPlugin/master/docs/img/logo.png")]
 [assembly: AssemblyMetadata("ChangelogURL",          "")]
 [assembly: AssemblyMetadata("LongDescription",
     "Integrates the Adaptive Agent for PHD2 into N.I.N.A. The Agent tunes PHD2 guiding in real " +
