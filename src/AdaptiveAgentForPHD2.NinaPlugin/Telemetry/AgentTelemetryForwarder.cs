@@ -130,6 +130,23 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
                 if (md != null)
                 {
                     AddIfNumber(image, "airmass", md.Telescope?.Airmass ?? double.NaN);
+
+                    // §102 — stato del FUOCO al momento della posa. Serve a
+                    // distinguere una variazione del cielo da una variazione del
+                    // sistema ottico: e' la seconda dimensione causale accanto a
+                    // star_count/bkg. Nessuna decisione la legge — telemetria pura,
+                    // come airmass. La temperatura passa da AddIfFinite perche'
+                    // sotto zero e' normale e AddIfNumber la scarterebbe.
+                    // NB: `Position` e' int?, `Temperature` double — verificato dal
+                    // compilatore contro l'SDK 3.2.0.9001, come per la FWHM. E
+                    // `MechanicalPosition` NON esiste su FocuserParameter: la
+                    // domanda se aggiungesse informazione e' risolta alla radice.
+                    var foc = md.Focuser;
+                    if (foc != null)
+                    {
+                        AddIfNumber(image, "focuser_position", foc.Position ?? -1);
+                        AddIfFinite(image, "focuser_temperature", foc.Temperature);
+                    }
                     var name = md.Target?.Name;
                     if (!string.IsNullOrWhiteSpace(name)) { target = name.Trim(); }
                 }
@@ -156,6 +173,17 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
         private static void AddIfNumber(IDictionary<string, object?> map, string key, double value)
         {
             if (double.IsFinite(value) && value >= 0) { map[key] = value; }
+        }
+
+        // §102 — come AddIfNumber ma SENZA il vincolo di non-negativita'. Serve
+        // alle grandezze che possono essere legittimamente negative: la
+        // temperatura del focheggiatore, che a 967 m di quota sta sotto zero per
+        // buona parte dell'inverno. Con AddIfNumber quei valori sparirebbero in
+        // silenzio proprio nelle notti piu' fredde, cioe' quelle in cui la deriva
+        // termica del fuoco e' piu' interessante.
+        private static void AddIfFinite(IDictionary<string, object?> map, string key, double value)
+        {
+            if (double.IsFinite(value)) { map[key] = value; }
         }
 
         private async Task PostAsync(string json)
