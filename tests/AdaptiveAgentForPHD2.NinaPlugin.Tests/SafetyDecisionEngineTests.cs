@@ -32,6 +32,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             public int GuideUnobservablePolls { get; set; } = 3;
             public bool SkyDegradingAccumulateEnabled { get; set; } = true;
             public int SkyDegradingUnsafePolls { get; set; } = 8;
+            // §126 — questi test fissano il comportamento con la CAMERA giudice (fino al
+            // 1.13, oggi opzione). Il giudice guida ha i suoi test: GuideSkyJudgeTests.
+            public bool ImagingCameraUnsafeEnabled { get; set; } = true;
         }
 
         private static AgentStatusSnapshot Snap(

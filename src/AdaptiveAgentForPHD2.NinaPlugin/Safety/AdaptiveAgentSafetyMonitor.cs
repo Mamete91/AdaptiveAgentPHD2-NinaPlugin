@@ -61,8 +61,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.13.0.0 — sky conditions monitor (virtual safety device)";
-        public string DriverVersion => "1.13.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.14.0.0 — sky conditions monitor (virtual safety device)";
+        public string DriverVersion => "1.14.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -86,6 +86,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         public async Task<bool> Connect(CancellationToken token)
         {
             _engine.Reset();
+            // §126-bis — il monitor e' un singleton che sopravvive allo scollegamento:
+            // senza questo, dopo un UNSAFE il monitor ricollegato restava UNSAFE per
+            // sempre a motore pulito (verifica del 05/10; ipotesi della forense del
+            // 3-4/10, ora provata). Anche la finestra meridiano riparte pulita.
+            _internalSafe = true;
+            _meridian.Reset();
 
             // Connected richiede che l'Agente risponda sia a /about sia a /status entro il timeout (3s).
             var health = await _health.CheckOnceAsync().ConfigureAwait(false);
@@ -115,11 +121,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _health.StatusPollingEnabled = false;
             _engine.Reset();
             _meridian.Reset();
+            _internalSafe = true;   // §126-bis — nessuno stato vecchio alla dashboard
             Connected = false;
             // §73 — la dashboard deve saperlo: monitor scollegato = stato SCONOSCIUTO,
             // mai un verde residuo lasciato sullo schermo (stessa disciplina §55).
             _publisher.Publish("SAFE", null, null, connected: false, internalSafe: _internalSafe,
-                               _settings.HealthCheckIntervalSeconds);
+                               _settings.HealthCheckIntervalSeconds, JudgeName());
         }
 
         public void SetupDialog() { /* no-op: HasSetupDialog == false */ }
@@ -199,12 +206,42 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             if (!Connected) { return; }
 
             var decision = _engine.Evaluate(snap, _settings);
+            if (_engine.JudgeChangedThisTick)
+            {
+                if (_engine.GuideJudgeActive)
+                {
+                    Logger.Info("Adaptive Agent Safety Monitor: the guide channel judges the sky (plugin 1.14)");
+                }
+                else if (!_settings.ImagingCameraUnsafeEnabled)
+                {
+                    // L'opzione chiede la guida ma l'Agente non puo' farlo (versione
+                    // vecchia, sensore spento): si torna al comportamento 1.13.
+                    Logger.Warning("Adaptive Agent Safety Monitor: the Agent cannot act as sky judge "
+                                   + "(Agent older than 3.1, or its sky sensor is off) — the imaging "
+                                   + "camera judges the sky, as in plugin 1.13");
+                    // §126-quater — non in silenzio: con l'Agente 3.0 tornerebbe il
+                    // giudizio della camera che il 3-4/10 ha fermato la notte.
+                    ShowToast(() => Notification.ShowWarning(Loc.T("Toast_CameraJudgeFallback")));
+                }
+                else
+                {
+                    Logger.Info("Adaptive Agent Safety Monitor: the imaging camera judges the sky (legacy option)");
+                }
+            }
             switch (decision)
             {
                 case SafetyDecision.BecameUnsafe:
                     _internalSafe = false;
                     switch (_engine.LastCause)
                     {
+                        case SafetyCause.Cloud when _engine.LastCloudFromGuide:
+                            // §126 — il latch del cielo acceso dal giudice guida.
+                            Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — guide-star signal collapsed "
+                                        + "below half of its clear-sky reference (clouds, or a guide-camera fault), "
+                                        + "judged by the guide channel");
+                            ShowToast(() => Notification.ShowWarning(
+                                Loc.T("Toast_GuideSkyUnsafe")));
+                            break;
                         case SafetyCause.Cloud:
                             Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — persistent transparency degradation (clouds)");
                             ShowToast(() => Notification.ShowWarning(
@@ -239,7 +276,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
 
                 case SafetyDecision.BecameSafe:
                     _internalSafe = true;
-                    Logger.Info("Adaptive Agent Safety Monitor: SAFE — conditions recovered");
+                    Logger.Info(_engine.GuideJudgeActive
+                        ? "Adaptive Agent Safety Monitor: SAFE — conditions recovered (confirmed by the guide channel)"
+                        : "Adaptive Agent Safety Monitor: SAFE — conditions recovered");
                     ShowToast(() => Notification.ShowInformation(
                         Loc.T("Toast_RecoveredSafe")));
                     break;
@@ -257,6 +296,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             // §73 — riflesso verso la dashboard: uno stato VERO per volta, con la
             // causa (che e' l'azione operativa distinta) e un dettaglio leggibile.
             PublishState(windowOpen);
+
+            // §126 — sulle TRANSIZIONI la riga dei contatori va a Info: la forense del
+            // 3-4/10 ha dovuto DEDURRE i contatori da orari e default, perche' la riga
+            // per tick e' Debug e il log di NINA era a Info.
+            if (decision != SafetyDecision.NoChange)
+            {
+                Logger.Info($"Adaptive Agent Safety Monitor: transition {decision} — {_engine.LastTickSummary}");
+            }
 
             // §3 osservabilita' — una riga per tick, stato POST-decisione (Debug: segue il
             // livello di log globale di NINA, come da convenzioni plugin).
@@ -295,7 +342,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 else
                 {
                     state = "UNSAFE";
-                    cause = _engine.LastCause switch
+                    // §126-bis — la causa ATTUALE: dopo una stella ritrovata il latch e'
+                    // passato al cielo della guida e la dashboard deve dirlo.
+                    var attuale = _engine.CurrentCause != SafetyCause.None ? _engine.CurrentCause : _engine.LastCause;
+                    cause = attuale switch
                     {
                         SafetyCause.Cloud => "CLOUD",
                         SafetyCause.StaleTelemetry => "STALE_TELEMETRY",
@@ -306,7 +356,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     };
                 }
                 _publisher.Publish(state, cause, detail, Connected, _internalSafe,
-                                   _settings.HealthCheckIntervalSeconds);
+                                   _settings.HealthCheckIntervalSeconds, JudgeName());
             }
             catch (Exception ex)
             {
@@ -314,6 +364,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 Logger.Debug($"Safety state publish skipped ({ex.Message})");
             }
         }
+
+        /// <summary>§126-bis — il giudice EFFETTIVO (non l'opzione): finche' non e' deciso,
+        /// quello che l'opzione chiede.</summary>
+        private string JudgeName()
+            => _engine.JudgeDecided
+                ? (_engine.GuideJudgeActive ? "GUIDE" : "CAMERA")
+                : (_settings.ImagingCameraUnsafeEnabled ? "CAMERA" : "GUIDE");
 
         /// <summary>
         /// §72 — un tick della protezione meridiano: legge montatura e profilo (fail-inert:

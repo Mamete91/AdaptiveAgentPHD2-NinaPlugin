@@ -85,6 +85,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         // puro: allunga la cadenza S1 fino al tetto (RecoveryProbeGate.AutoCeilingSeconds),
         // mai un veto. Born-operative: a fail-open totale (agente vecchio => inerte).
         public const bool DefaultProbeChannelGateEnabled = true;
+        // §126 — decisione dell'operatore del 04/10/2026: la camera di guida e' l'unico
+        // giudice del cielo, la camera di ripresa resta informativa. Il 3-4/10 una posa
+        // con stelle allungate (525 stelle, ECC 0.65) ha portato l'indice a 0.457 e il
+        // monitor in UNSAFE per tre ore, con la stella di guida a SNR 66.3 su 65.5.
+        // true = comportamento fino al 1.13 (escape hatch, non consigliato).
+        public const bool DefaultImagingCameraUnsafeEnabled = false;
         // §72 — protezione meridiano. Decisione di Alessandro (2026-08-04): born-operative,
         // NON opt-in — nel perimetro attuale l'unico consumatore di IsSafe e' NINA e il
         // rischio reale e' il DEADLOCK (flip mancato => tracking fermo => tutti gli occhi
@@ -124,6 +130,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
         private bool _skyDegradingAccumulateEnabled = DefaultSkyDegradingAccumulateEnabled;
         private int _skyDegradingUnsafePolls = DefaultSkyDegradingUnsafePolls;
         private bool _probeChannelGateEnabled = DefaultProbeChannelGateEnabled;
+        private bool _imagingCameraUnsafeEnabled = DefaultImagingCameraUnsafeEnabled;
         private bool _meridianProtectionEnabled = DefaultMeridianProtectionEnabled;
         private int _meridianLeadMinutes = DefaultMeridianLeadMinutes;
         private string _pluginLanguage = DefaultPluginLanguage;
@@ -426,6 +433,20 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             }
         }
 
+        /// <summary>§126 — anche la camera di ripresa puo' dichiarare UNSAFE (comportamento
+        /// fino al 1.13). Default false: giudica la sola guida, la ripresa e' informativa.</summary>
+        public bool ImagingCameraUnsafeEnabled
+        {
+            get => _imagingCameraUnsafeEnabled;
+            set
+            {
+                if (_imagingCameraUnsafeEnabled == value) { return; }
+                _imagingCameraUnsafeEnabled = value;
+                RaisePropertyChanged();
+                Save();
+            }
+        }
+
         /// <summary>§71 — gate della sonda sul "canale pronto": differisce la S1 (mai
         /// oltre il tetto di 15 min) finche' il canale guida non e' stabilmente tornato.</summary>
         public bool ProbeChannelGateEnabled
@@ -614,6 +635,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                                 ? DefaultSkyDegradingUnsafePolls : dto.SkyDegradingUnsafePolls.Value;
                         settings.ProbeChannelGateEnabled =
                             dto.ProbeChannelGateEnabled ?? DefaultProbeChannelGateEnabled;
+                        // §126 — chiave assente (upgrade <=1.13) => default: giudica la guida.
+                        settings.ImagingCameraUnsafeEnabled =
+                            dto.ImagingCameraUnsafeEnabled ?? DefaultImagingCameraUnsafeEnabled;
                         settings.MeridianProtectionEnabled =
                             dto.MeridianProtectionEnabled ?? DefaultMeridianProtectionEnabled;
                         settings.MeridianLeadMinutes =
@@ -660,7 +684,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
                     GuideSilenceSeconds = _guideSilenceSeconds,
                     GuideUnobservablePolls = _guideUnobservablePolls,
                     SkyDegradingAccumulateEnabled = _skyDegradingAccumulateEnabled,
+                    // §126-quater — mancava: il valore impostato dalle Opzioni tornava a 8
+                    // a ogni riavvio di NINA. Con la guida giudice e' la soglia delle nubi.
+                    SkyDegradingUnsafePolls = _skyDegradingUnsafePolls,
                     ProbeChannelGateEnabled = _probeChannelGateEnabled,
+                    ImagingCameraUnsafeEnabled = _imagingCameraUnsafeEnabled,
                     MeridianProtectionEnabled = _meridianProtectionEnabled,
                     MeridianLeadMinutes = _meridianLeadMinutes,
                     PluginLanguage = _pluginLanguage,
@@ -704,6 +732,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Settings
             public bool? SkyDegradingAccumulateEnabled { get; set; }
             public int? SkyDegradingUnsafePolls { get; set; }
             public bool? ProbeChannelGateEnabled { get; set; }
+            public bool? ImagingCameraUnsafeEnabled { get; set; }
             public bool? MeridianProtectionEnabled { get; set; }
             public int? MeridianLeadMinutes { get; set; }
             public string? PluginLanguage { get; set; }

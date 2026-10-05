@@ -57,7 +57,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
         /// per meta' dei valori possibili.
         /// </summary>
         public void Publish(string state, string? cause, string? detail,
-                            bool connected, bool internalSafe, int pollIntervalSeconds)
+                            bool connected, bool internalSafe, int pollIntervalSeconds,
+                            string? judge = null)
         {
             if (_disposed) { return; }
             try
@@ -70,6 +71,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Telemetry
                     connected,
                     internal_safe = internalSafe,
                     poll_interval_s = pollIntervalSeconds,
+                    // §126 — chi giudica il cielo ("GUIDE"/"CAMERA"): la dashboard
+                    // racconta il recupero in modo diverso nei due casi.
+                    judge,
                 });
                 _ = PostAsync(payload);
             }

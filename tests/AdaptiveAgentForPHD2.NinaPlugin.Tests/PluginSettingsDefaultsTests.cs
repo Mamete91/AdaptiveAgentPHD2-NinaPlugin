@@ -41,5 +41,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             Assert.IsTrue(fresh.AgentLostUnsafeEnabled);
             Assert.AreEqual("", fresh.PluginLanguage, "default lingua = Follow N.I.N.A.");
         }
+
+        [TestMethod]
+        public void NewInstallation_GuideChannelJudgesTheSky()
+        {
+            // §126 — decisione del 04/10/2026: la camera di ripresa e' informativa.
+            Assert.IsFalse(new PluginSettings().ImagingCameraUnsafeEnabled);
+            Assert.IsFalse(PluginSettings.DefaultImagingCameraUnsafeEnabled);
+        }
     }
 }

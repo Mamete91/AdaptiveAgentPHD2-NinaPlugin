@@ -41,7 +41,17 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         // §76 — evidenza che il cielo sta PEGGIORANDO vista dal canale guida
         // (3 s) mentre N1 e' ancora fermo all'ultima posa (300 s). Assente su
         // Agenti <v2.14 => false => comportamento pre-§76.
-        bool SkyDegrading = false);
+        bool SkyDegrading = false,
+        // §126 — la guida giudica il cielo. Tutti opzionali: un Agente <3.1 non li
+        // espone => StarLost null => logica STAR_LOST storica sul guiding_state.
+        bool? StarLost = null,              // stella persa ADESSO, misurata sugli eventi PHD2
+        double? StarLostS = null,           // da quanti secondi di fila
+        bool StarTracked = false,           // ultimo frame con stella, e recente
+        bool SkyOk = false,                 // SNR sopra il recupero (80%), sostenuta 60 s
+        bool? ChannelReady = null,          // §71 — stella tracciata in modo stabile
+        // §126-bis — l'Agente DICHIARA di poter fare da giudice del cielo (3.1+,
+        // sensore acceso e canale osservato). Assente o falso => giudice camera (1.13).
+        bool GuideJudgeReady = false);
 
     /// <summary>
     /// Poller leggero che interroga GET &lt;DashboardUrl&gt;/about a intervalli regolari.
@@ -248,6 +258,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                 bool guidingExpected = false;
                 int starErrors = 0;
                 bool alertSevere = false;
+                bool? starLost = null;
+                double? starLostS = null;
+                bool starTracked = false;
+                bool? channelReady = null;
                 if (doc.RootElement.TryGetProperty("guide_health", out var gh)
                     && gh.ValueKind == JsonValueKind.Object
                     && gh.TryGetProperty("enabled", out var ghEn)
@@ -275,16 +289,51 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     {
                         alertSevere = al.GetBoolean();
                     }
+                    // §126 — stella persa sugli eventi (Agente >= 3.1).
+                    if (gh.TryGetProperty("star_lost", out var sl)
+                        && (sl.ValueKind == JsonValueKind.True || sl.ValueKind == JsonValueKind.False))
+                    {
+                        starLost = sl.GetBoolean();
+                    }
+                    if (gh.TryGetProperty("star_lost_s", out var sls) && sls.ValueKind == JsonValueKind.Number)
+                    {
+                        starLostS = sls.GetDouble();
+                    }
+                    if (gh.TryGetProperty("star_tracked", out var stk) && stk.ValueKind == JsonValueKind.True)
+                    {
+                        starTracked = true;
+                    }
+                    if (gh.TryGetProperty("channel_ready", out var cr))
+                    {
+                        if (cr.ValueKind == JsonValueKind.True) { channelReady = true; }
+                        else if (cr.ValueKind == JsonValueKind.False) { channelReady = false; }
+                    }
                 }
 
                 // §76 — evidenza di degrado dal canale guida (recovery_hint.degrading).
                 bool skyDegrading = false;
+                bool skyOk = false;
+                bool guideJudgeReady = false;
                 if (doc.RootElement.TryGetProperty("recovery_hint", out var rhBlock)
-                    && rhBlock.ValueKind == JsonValueKind.Object
-                    && rhBlock.TryGetProperty("degrading", out var deg)
-                    && deg.ValueKind == JsonValueKind.True)
+                    && rhBlock.ValueKind == JsonValueKind.Object)
                 {
-                    skyDegrading = true;
+                    if (rhBlock.TryGetProperty("degrading", out var deg)
+                        && deg.ValueKind == JsonValueKind.True)
+                    {
+                        skyDegrading = true;
+                    }
+                    // §126 — evidenza di sereno dalla guida (Agente 3.1). §126-bis: nessun
+                    // ripiego su `active` dell'Agente 3.0, che resta falso finche' la
+                    // camera dice sereno: dava l'illusione di compatibilita' e chiudeva
+                    // in uno stallo. Con un Agente vecchio decide la camera (1.13).
+                    if (rhBlock.TryGetProperty("sky_ok", out var ok))
+                    {
+                        skyOk = ok.ValueKind == JsonValueKind.True;
+                    }
+                    if (rhBlock.TryGetProperty("giudice_pronto", out var gp))
+                    {
+                        guideJudgeReady = gp.ValueKind == JsonValueKind.True;
+                    }
                 }
 
                 if (doc.RootElement.TryGetProperty("controller", out var controller)
@@ -299,7 +348,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                                                    GuidingExpected: guidingExpected,
                                                    GuideStarErrorsRecent: starErrors,
                                                    GuideAlertSevere: alertSevere,
-                                                   SkyDegrading: skyDegrading);
+                                                   SkyDegrading: skyDegrading,
+                                                   StarLost: starLost,
+                                                   StarLostS: starLostS,
+                                                   StarTracked: starTracked,
+                                                   SkyOk: skyOk,
+                                                   ChannelReady: channelReady,
+                                                   GuideJudgeReady: guideJudgeReady);
                 }
                 // Payload presente ma senza il campo atteso => no-op per il decision engine.
                 return new AgentStatusSnapshot(null, false);

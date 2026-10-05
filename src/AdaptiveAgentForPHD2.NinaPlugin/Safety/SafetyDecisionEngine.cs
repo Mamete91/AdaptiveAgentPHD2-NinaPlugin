@@ -12,6 +12,23 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
     public enum SafetyCause { None, StarLost, Cloud, StaleTelemetry, AgentLost, GuideUnobservable }
 
     /// <summary>
+    /// §126 (v1.14, 04/10/2026) — LA GUIDA GIUDICA IL CIELO. Decisione dell'operatore dopo la
+    /// forense della notte 3-4/10: un falso UNSAFE della camera di ripresa (UNA posa con
+    /// stelle allungate, indice 0.457) ha fermato la sequenza per tre ore mentre la stella di
+    /// guida — stesso tubo, stesso cielo — aveva SNR 66.3 su un riferimento di 65.5.
+    /// Da questa versione, con ImagingCameraUnsafeEnabled=false (default):
+    ///   • il cielo lo giudica il SOLO canale di guida, in entrambi i versi: il degrado
+    ///     (SkyDegrading) accumula, l'evidenza di sereno (SkyOk + canale pronto) drena;
+    ///   • la camera di ripresa e' informativa: niente percorso CLOUD sull'indice, niente
+    ///     latch STALE; la sua telemetria resta in dashboard;
+    ///   • STAR_LOST si legge sulla stella persa misurata dagli EVENTI di PHD2 (Agente 3.1),
+    ///     non sullo stato del controller, che usciva solo con l'RMS fuori dalla banda
+    ///     neutra (10/8: un frame perso, 126 buoni, UNSAFE); al rientro la guida conferma il
+    ///     cielo prima del SAFE;
+    ///   • con la guida ferma per annuncio (calibrazione, Guide Assistant, autofocus) il
+    ///     percorso del cielo si congela: niente evidenza, niente decisione.
+    /// ImagingCameraUnsafeEnabled=true riporta il comportamento fino al 1.13, descritto sotto.
+    ///
     /// Motore di decisione del Safety Monitor (v1.5 — fix N6 post-validazione 2026-07-10).
     /// Riceve uno snapshot per tick e decide se la sessione e' diventata unsafe/safe.
     ///
@@ -76,6 +93,14 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private double _guideSilenceAccum;
         private bool _guideUnobservableUnsafe;
 
+        // §126-bis — giudice EFFETTIVO del cielo, deciso una volta per collegamento
+        // all'Agente (al primo /status valido dopo Connect o dopo un Agente perso):
+        // guida solo se l'opzione lo chiede E l'Agente dichiara di poterlo fare.
+        // Deciso poll per poll, un payload transitorio cambierebbe giudice a latch acceso.
+        private bool? _guideJudge;
+        private bool _judgeOptionAtDecision;
+        private bool _judgeRedecide = true;
+
         // Memoria dell'ultimo contesto osservato in modo affidabile.
         private bool _lastKnownGuidingActive;
         private double? _lastFreshIndex;
@@ -86,6 +111,26 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
 
         /// <summary>Riga diagnostica dell'ultimo tick (input + contatori + latch), per il log Debug (§3).</summary>
         public string LastTickSummary { get; private set; } = "";
+
+        /// <summary>§126-bis — il giudice effettivo e' la guida.</summary>
+        public bool GuideJudgeActive => _guideJudge == true;
+
+        /// <summary>§126-bis — il giudice e' stato deciso (almeno un /status valido).</summary>
+        public bool JudgeDecided => _guideJudge.HasValue;
+
+        /// <summary>§126-bis — il giudice e' stato (ri)deciso in questo tick: il monitor lo scrive nel log.</summary>
+        public bool JudgeChangedThisTick { get; private set; }
+
+        /// <summary>§126-bis — la causa ATTUALE (il latch ancora acceso), non quella di
+        /// ingresso: dopo una stella ritrovata il latch passa al cielo della guida e la
+        /// dashboard deve dire "si aspetta il sereno", non "stella persa".</summary>
+        public SafetyCause CurrentCause =>
+            _starLostUnsafe ? SafetyCause.StarLost
+            : _guideUnobservableUnsafe ? SafetyCause.GuideUnobservable
+            : _agentLostUnsafe ? SafetyCause.AgentLost
+            : _staleUnsafe ? SafetyCause.StaleTelemetry
+            : _cloudUnsafe ? SafetyCause.Cloud
+            : SafetyCause.None;
 
         /// <summary>Riporta il motore allo stato iniziale. Chiamato su Connect/Disconnect ESPLICITI.</summary>
         public void Reset()
@@ -107,6 +152,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _lastKnownGuidingActive = false;
             _lastFreshIndex = null;
             _lastFreshState = null;
+            _guideJudge = null;
+            _judgeRedecide = true;
+            JudgeChangedThisTick = false;
+            LastCloudFromGuide = false;
             LastCause = SafetyCause.None;
             LastTickSummary = "";
         }
@@ -117,9 +166,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             bool prevStar = _starLostUnsafe, prevCloud = _cloudUnsafe,
                  prevStale = _staleUnsafe, prevLost = _agentLostUnsafe,
                  prevGuide = _guideUnobservableUnsafe;
+            JudgeChangedThisTick = false;
 
             if (!snap.AgentReachable)
             {
+                // §126-bis — al ritorno l'Agente puo' essere un altro (riavviato,
+                // un'altra versione): il giudice si ridecide.
+                _judgeRedecide = true;
                 // Fix Bug C: agente irraggiungibile. Nessun reset, nessun disconnect: i latch
                 // restano; a sessione attiva l'assenza di osservazione ESCALA verso UNSAFE.
                 if (settings.AgentLostUnsafeEnabled && _lastKnownGuidingActive)
@@ -155,15 +208,46 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 if (snap.TransparencyState is string fs) { _lastFreshState = fs; }
             }
 
+            // §126 — chi giudica il cielo. §126-bis: il giudice EFFETTIVO.
+            DecideJudge(snap, settings);
+            bool cameraJudge = _guideJudge != true;
+            bool guideSkyJudge = !cameraJudge && settings.CloudSafetyEnabled;
+
+            // §126-bis — sicurezza nubi spenta: nessun latch del cielo deve restare
+            // acceso (prima restava per sempre, anche nel 1.13).
+            if (!settings.CloudSafetyEnabled)
+            {
+                _cloudUnsafe = false;
+                _cloudDegradation = 0.0;
+                _fastDegradation = 0.0;
+            }
+
             // ---- Trasferimento latch STALE/AGENT_LOST al ritorno dei dati ----
             // Il rientro non e' gratis: satura il degrado CLOUD => servono ClearSafePolls di
             // evidenza CLEAR per tornare SAFE (isteresi di recupero unica e coerente).
-            if ((_staleUnsafe && fresh) || (_agentLostUnsafe && fresh && settings.CloudSafetyEnabled))
+            if (cameraJudge)
             {
-                _cloudDegradation = Math.Max(_cloudDegradation, Math.Max(1, settings.CloudUnsafePolls));
-                _cloudUnsafe = true;
+                if ((_staleUnsafe && fresh) || (_agentLostUnsafe && fresh && settings.CloudSafetyEnabled))
+                {
+                    _cloudDegradation = Math.Max(_cloudDegradation, Math.Max(1, settings.CloudUnsafePolls));
+                    _cloudUnsafe = true;
+                    _staleUnsafe = false;
+                    _agentLostUnsafe = false;
+                }
+            }
+            else
+            {
+                // §126 — senza camera giudice STALE non esiste (opzione cambiata a latch
+                // acceso: si spegne). AGENT_LOST al ritorno dell'Agente passa al percorso
+                // del cielo della guida, saturato: il SAFE lo concede la guida quando
+                // conferma il sereno, non il solo fatto che l'Agente risponda di nuovo.
                 _staleUnsafe = false;
-                _agentLostUnsafe = false;
+                _staleStreakPolls = 0;
+                if (_agentLostUnsafe && guideSkyJudge)
+                {
+                    SaturateGuideSky(settings);
+                    _agentLostUnsafe = false;
+                }
             }
 
             // ---- Condizione 1: STAR_LOST (guida) ----
@@ -188,7 +272,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             // GuidingState null (payload incompleto) NON conta come operativo: fail-safe.
             bool isGuidingOperational = snap.GuidingState is string g
                                         && g != "STAR_LOST" && g != "INACTIVE";
-            if (isStarLost)
+            if (snap.StarLost is bool lostNow)
+            {
+                // §126 — Agente 3.1: la stella persa e' misurata sugli EVENTI di PHD2
+                // (StarLost la apre; GuideStep, passo di calibrazione o nuova stella la
+                // chiudono) e porta la propria durata. Due difetti chiusi:
+                //   • il 10/8 un frame perso alle 22:32:03, poi 126 frame buoni, e UNSAFE
+                //     alle 22:34:55: lo stato del controller usciva solo con l'RMS fuori
+                //     dalla banda neutra;
+                //   • la durata non dipende piu' dalla cadenza dei poll.
+                // NON si congela a guida ferma: se la guida si ferma mentre la stella e'
+                // persa e nessuno la rivede, l'ultima osservazione e' "stella persa" e
+                // tale resta (il 24/8 l'allarme nato prima della calibrazione era con ogni
+                // probabilita' giusto: nubi). Congelarla accecherebbe il monitor.
+                EvaluateStarLostFromEvents(snap, settings, lostNow, fresh, cameraJudge, guideSkyJudge);
+            }
+            else if (isStarLost)
             {
                 _starLostStreakTicks++;
                 _normalStreakTicks = 0;
@@ -251,15 +350,26 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     _guideSilenceAccum = Math.Max(0.0, _guideSilenceAccum - 1.0);
                 }
                 if (_guideSilenceAccum >= cap) { _guideUnobservableUnsafe = true; }
-                if (_guideSilenceAccum <= 0.0) { _guideUnobservableUnsafe = false; }
+                if (_guideSilenceAccum <= 0.0 && _guideUnobservableUnsafe)
+                {
+                    _guideUnobservableUnsafe = false;
+                    // §126-bis — come STAR_LOST e AGENT_LOST: il canale che riparla
+                    // non e' prova di sereno. Il SAFE lo concede la guida.
+                    if (guideSkyJudge) { SaturateGuideSky(settings); }
+                }
             }
             else
             {
                 // Guida non attesa (pausa annunciata), latch spento o Agente che non
-                // espone il blocco §68: nessun allarme e rientro immediato. La pausa
-                // legittima non deve mai lasciare strascichi.
+                // espone il blocco §68: nessun allarme. La pausa legittima non lascia
+                // strascichi; un latch GIA' acceso pero' non si spegne gratis: con la
+                // guida giudice passa al cielo della guida (§126-bis).
                 _guideSilenceAccum = 0.0;
-                _guideUnobservableUnsafe = false;
+                if (_guideUnobservableUnsafe)
+                {
+                    _guideUnobservableUnsafe = false;
+                    if (guideSkyJudge) { SaturateGuideSky(settings); }
+                }
             }
 
             // ---- Condizione 2: STALE (fix Bug B) ----
@@ -267,7 +377,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             {
                 _staleStreakPolls = 0;
             }
-            else if (settings.CloudSafetyEnabled && settings.StaleUnsafeEnabled
+            else if (cameraJudge && settings.CloudSafetyEnabled && settings.StaleUnsafeEnabled
                      && _lastKnownGuidingActive && LastContextDegraded(settings))
             {
                 // fresh=false significa GIA' "oltre la finestra adattiva §43" (il gap normale
@@ -278,10 +388,15 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             // NB: lo stantio NON azzera piu' il degrado accumulato (prima: reset silenzioso).
 
             // ---- Condizione 3: CLOUD ----
+            // §126 — giudice = la guida: valutata a OGNI tick, la camera non entra.
+            if (guideSkyJudge)
+            {
+                EvaluateGuideSky(snap, settings);
+            }
             // §76 — il gate si apre anche col SOLO sensore veloce: la SNR di guida
             // arriva da PHD2, non da NINA, quindi non dipende dalla freschezza della
             // telemetria di ripresa. E' proprio il caso in cui e' l'unico che parla.
-            if (settings.CloudSafetyEnabled
+            else if (cameraJudge && settings.CloudSafetyEnabled
                 && (fresh || (settings.SkyDegradingAccumulateEnabled && snap.SkyDegrading)))
             {
                 if (settings.UseIndexCloudLogic)
@@ -293,7 +408,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     EvaluateCloudLegacy(snap, settings);
                 }
             }
-            else if (settings.CloudSafetyEnabled && !settings.UseIndexCloudLogic)
+            else if (cameraJudge && settings.CloudSafetyEnabled && !settings.UseIndexCloudLogic)
             {
                 // Logica LEGACY (kill-switch): comportamento pre-fix, streak azzerati sullo stantio.
                 _cloudStreakPolls = 0;
@@ -303,6 +418,125 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
 
             BuildSummary(snap, settings);
             return Transition(prevUnsafe, prevStar, prevCloud, prevStale, prevLost, prevGuide);
+        }
+
+        /// <summary>
+        /// §126 — STAR_LOST dagli eventi di PHD2 (Agente 3.1). Ingresso: stella persa di
+        /// fila per StarLostConsolidationSeconds. Uscita: stella di nuovo tracciata per
+        /// ResumeTicks; con la guida giudice del cielo il latch passa al percorso del
+        /// cielo, saturato, cosi' il SAFE arriva solo quando la guida conferma anche il
+        /// sereno (il 3/8 la stella tornava a SNR 0.28-0.49 del riferimento, nubi a tratti).
+        /// </summary>
+        private void EvaluateStarLostFromEvents(AgentStatusSnapshot snap, ISafetySettings settings,
+            bool lostNow, bool fresh, bool cameraJudge, bool guideSkyJudge)
+        {
+            if (lostNow)
+            {
+                _starLostStreakTicks++;
+                _normalStreakTicks = 0;
+                double lostFor = snap.StarLostS ?? 0.0;
+                if (lostFor >= Math.Max(1, settings.StarLostConsolidationSeconds)) { _starLostUnsafe = true; }
+                return;
+            }
+            if (!snap.StarTracked)
+            {
+                // Ne' persa ne' tracciata ADESSO (nessun frame recente): nessuna
+                // evidenza in nessun verso, i contatori restano dove sono.
+                return;
+            }
+            _starLostStreakTicks = 0;
+            if (!_starLostUnsafe && !_agentLostUnsafe) { return; }
+            _normalStreakTicks++;
+            if (_normalStreakTicks < ResumeTicks) { return; }
+            if (_starLostUnsafe)
+            {
+                _starLostUnsafe = false;
+                if (guideSkyJudge) { SaturateGuideSky(settings); }
+            }
+            // AGENT_LOST senza percorso del cielo che lo raccolga: la guida tornata
+            // tracciata e' l'evidenza di rientro (con la camera giudice: solo senza
+            // trasparenza fresca, come prima).
+            if (_agentLostUnsafe && (!cameraJudge || !fresh)) { _agentLostUnsafe = false; }
+        }
+
+        /// <summary>
+        /// §126 — il percorso del cielo con la GUIDA come giudice. Un solo accumulatore
+        /// (_fastDegradation, tetto SkyDegradingUnsafePolls):
+        ///   • guida non attesa (stop, calibrazione, Guide Assistant, autofocus): congelato —
+        ///     niente evidenza, niente decisione in nessun verso;
+        ///   • SkyDegrading (SNR &lt;= 50% del riferimento per 90 s, misurato dall'Agente):
+        ///     +1 per poll;
+        ///   • SkyOk (SNR &gt;= 80% per 60 s) E canale pronto (§71: stella tracciata in modo
+        ///     stabile, frame recenti): drena di tetto/ClearSafePolls per poll;
+        ///   • in mezzo: invariato (isteresi).
+        /// UNSAFE a tetto, SAFE a zero. La camera di ripresa non entra.
+        /// </summary>
+        private void EvaluateGuideSky(AgentStatusSnapshot snap, ISafetySettings settings)
+        {
+            if (!snap.GuidingExpected) { return; }
+
+            int fastCap = Math.Max(1, settings.SkyDegradingUnsafePolls);
+            int clearPolls = Math.Max(1, settings.ClearSafePolls);
+            double fastDrain = Math.Max(1.0, (double)fastCap / clearPolls);
+
+            // §126-bis — con la guida giudice il crollo della stella e' l'UNICA via per
+            // le nubi: la casella "dichiara unsafe prima" (SkyDegradingAccumulate,
+            // nata come acceleratore della camera) non deve poterla spegnere. A
+            // spegnere il percorso del cielo resta "Sicurezza nubi attiva".
+            bool degrading = snap.SkyDegrading;
+            // Canale pronto assente (Agente vecchio) => non blocca: decide SkyOk.
+            bool clear = snap.SkyOk && snap.ChannelReady != false;
+
+            if (degrading)
+            {
+                _fastDegradation = Math.Min(fastCap, _fastDegradation + 1.0);
+            }
+            else if (clear)
+            {
+                _fastDegradation = Math.Max(0.0, _fastDegradation - fastDrain);
+            }
+
+            if (_fastDegradation >= fastCap) { _cloudUnsafe = true; }
+            if (_fastDegradation <= 0.0 && _cloudUnsafe) { _cloudUnsafe = false; }
+        }
+
+        /// <summary>
+        /// §126-bis — decide il giudice effettivo: al primo /status valido, dopo un Agente
+        /// perso, o se l'opzione cambia. Se cambia a latch acceso il latch si TRASFERISCE
+        /// (verso la guida: cielo saturato; verso la camera: degrado lento saturato),
+        /// cosi' nessun cambio di giudice spegne un UNSAFE senza evidenza.
+        /// </summary>
+        private void DecideJudge(AgentStatusSnapshot snap, ISafetySettings settings)
+        {
+            bool option = settings.ImagingCameraUnsafeEnabled;
+            if (_guideJudge.HasValue && !_judgeRedecide && option == _judgeOptionAtDecision) { return; }
+            bool nuovo = !option && snap.GuideJudgeReady;
+            if (_guideJudge.HasValue && _guideJudge.Value != nuovo && _cloudUnsafe)
+            {
+                if (nuovo) { SaturateGuideSky(settings); }
+                else { _cloudDegradation = Math.Max(_cloudDegradation, Math.Max(1, settings.CloudUnsafePolls)); }
+            }
+            if (nuovo)
+            {
+                // §126-quater — anche un latch STALE acceso non si spegne gratis: passa
+                // al cielo della guida (come _cloudUnsafe sopra).
+                if (_staleUnsafe) { SaturateGuideSky(settings); }
+                _staleUnsafe = false;
+                _staleStreakPolls = 0;
+            }
+            JudgeChangedThisTick = !_guideJudge.HasValue || _guideJudge.Value != nuovo;
+            _guideJudge = nuovo;
+            _judgeOptionAtDecision = option;
+            _judgeRedecide = false;
+        }
+
+        /// <summary>§126 — porta il percorso del cielo della guida a UNSAFE pieno: da qui
+        /// si esce solo con l'evidenza di sereno della guida.</summary>
+        private void SaturateGuideSky(ISafetySettings settings)
+        {
+            _fastDegradation = Math.Max(_fastDegradation, Math.Max(1, settings.SkyDegradingUnsafePolls));
+            _cloudDegradation = 0.0;
+            _cloudUnsafe = true;
         }
 
         /// <summary>
@@ -427,6 +661,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private bool AnyUnsafe => _starLostUnsafe || _cloudUnsafe || _staleUnsafe
                                   || _agentLostUnsafe || _guideUnobservableUnsafe;
 
+        /// <summary>§126 — true se il latch del cielo e' stato acceso dal percorso della
+        /// GUIDA (per il messaggio di log: "segnale della stella" vs "trasparenza").</summary>
+        public bool LastCloudFromGuide { get; private set; }
+
         private SafetyDecision Transition(bool prevUnsafe,
             bool prevStar, bool prevCloud, bool prevStale, bool prevLost, bool prevGuide)
         {
@@ -434,6 +672,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             if (nowUnsafe && !prevUnsafe)
             {
                 // Causa = il latch scattato in QUESTO tick (in ordine di specificita').
+                // §126-bis — dal giudice effettivo, non dagli accumulatori.
+                LastCloudFromGuide = _cloudUnsafe && _guideJudge == true;
                 LastCause = (_starLostUnsafe && !prevStar) ? SafetyCause.StarLost
                           : (_cloudUnsafe && !prevCloud) ? SafetyCause.Cloud
                           : (_staleUnsafe && !prevStale) ? SafetyCause.StaleTelemetry
@@ -465,7 +705,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 $"lost={_agentLostStreakPolls}/{settings.AgentLostUnsafePolls} " +
                 $"guide[age={snap.GuideFrameAgeS?.ToString("0", ic) ?? "-"}s exp={B(snap.GuidingExpected)} " +
                 $"acc={_guideSilenceAccum.ToString("0.#", ic)}/{settings.GuideUnobservablePolls} " +
-                $"err={snap.GuideStarErrorsRecent} alert={B(snap.GuideAlertSevere)}] | " +
+                $"err={snap.GuideStarErrorsRecent} alert={B(snap.GuideAlertSevere)} " +
+                $"lost={(snap.StarLost is bool sl ? B(sl) : "-")}/{snap.StarLostS?.ToString("0", ic) ?? "-"}s " +
+                $"trk={B(snap.StarTracked)} deg={B(snap.SkyDegrading)} ok={B(snap.SkyOk)} " +
+                $"ready={(snap.ChannelReady is bool cr ? B(cr) : "-")}] " +
+                $"judge={(_guideJudge == true ? "GUIDE" : "CAMERA")} " +
+                $"jready={B(snap.GuideJudgeReady)} | " +
                 $"latch[star={B(_starLostUnsafe)} cloud={B(_cloudUnsafe)} stale={B(_staleUnsafe)} " +
                 $"lost={B(_agentLostUnsafe)} guide={B(_guideUnobservableUnsafe)}]";
             static string B(bool b) => b ? "1" : "0";

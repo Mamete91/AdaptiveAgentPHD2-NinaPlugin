@@ -1,6 +1,6 @@
 # Adaptive Agent for PHD2 — Dashboard (N.I.N.A. plugin)
 
-A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session. Its centerpiece is a virtual **Sky Conditions monitor** — exposed through N.I.N.A.'s native `ISafetyMonitor` interface, the same role an ASCOM safety monitor plays — providing one continuously evaluated **SAFE/UNSAFE verdict on acquisition quality** (guide star, N1 sky transparency, telemetry freshness, Agent health). **N.I.N.A.'s Sequence Engine always owns the sequence lifecycle**: the monitor reports, it never orchestrates. Around that state the plugin ships the recommended **Recovery probe** workflow to resume the session after clouds, a dockable dashboard panel, per-exposure telemetry forwarding, and automatic Agent lifecycle management. UI in English or Italiano.
+A plugin for [N.I.N.A.](https://nighttime-imaging.eu/) (Nighttime Imaging 'N' Astronomy) that integrates the **Adaptive Agent for PHD2** into an imaging session. Its centerpiece is a virtual **Sky Conditions monitor** — exposed through N.I.N.A.'s native `ISafetyMonitor` interface, the same role an ASCOM safety monitor plays — providing one continuously evaluated **SAFE/UNSAFE verdict on acquisition quality**. Since 1.14 the **guide channel judges the sky** in both directions; the imaging camera's transparency index is informational. **N.I.N.A.'s Sequence Engine always owns the sequence lifecycle**: the monitor reports, it never orchestrates. Around that state the plugin ships the recommended **Recovery probe** workflow to resume the session after clouds, a dockable dashboard panel, per-exposure telemetry forwarding, and automatic Agent lifecycle management. UI in English or Italiano.
 
 The Adaptive Agent itself is a separate, standalone application. This plugin is the bridge between it and N.I.N.A.
 
@@ -31,12 +31,14 @@ Renders the Agent dashboard inside N.I.N.A. through WebView2, with an online/off
 On every saved light frame the plugin forwards N.I.N.A.'s image metrics to the Agent (`POST /nina/telemetry`): HFR, HFR standard deviation, star count, image statistics (mean/median/stdev ADU), exposure duration and filter. Fire-and-forget with a 3-second timeout and no retries. The Agent uses these metrics to recognize **sky transparency** (CLEAR / HAZE / CLOUD) independently of guiding.
 
 ### 3. Sky Conditions monitor (Agent → N.I.N.A.)
-A virtual device that N.I.N.A. can use like any other safety device — it appears under the *Safety Monitor* equipment category, which is N.I.N.A.'s name for the slot. It measures observing conditions continuously; reporting **unsafe** is one of the consequences, not the whole role. It reports **unsafe** when:
+A virtual device that N.I.N.A. can use like any other safety device — it appears under the *Safety Monitor* equipment category, which is N.I.N.A.'s name for the slot. It measures observing conditions continuously; reporting **unsafe** is one of the consequences, not the whole role. Since **1.14 the guide channel is the judge of the sky**, in both directions: the guide star sits in the same telescope as the imaging camera (off-axis guider) and is measured every few seconds, also while the sequence is paused. It needs **Adaptive Agent 3.1** or later; with an older Agent the plugin falls back to the 1.13 imaging-camera judgement. It reports **unsafe** when:
 
-- the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes);
-- N.I.N.A. sky transparency has stayed **degraded persistently** — an index-based leaky accumulator: clear sky drains the count, brief HAZE bounces are neutral and never reset it (v1.5);
-- N.I.N.A. telemetry has gone **stale while the last known sky was degraded** (v1.5);
-- the **Agent becomes unreachable during an active session** (v1.5) — the monitor stays connected and escalates, it never flips to "safe" by disconnecting.
+- the guide star has been lost (**STAR_LOST**) beyond a consolidation time (default 5 minutes), measured on PHD2's own StarLost/GuideStep events;
+- the **guide-star signal collapses** below half of its clear-sky reference (90 s to confirm in the Agent, then *Guide-star fade → unsafe* polls: about 3.5 minutes with the factory settings) — clouds, or a guide-camera fault;
+- the **guide channel goes silent** while guiding was expected;
+- the **Agent becomes unreachable during an active session** — the monitor stays connected and escalates, it never flips to "safe" by disconnecting.
+
+It returns **safe** when the guide star stays above 80% of its reference for a minute and is tracked steadily (about 2 minutes after the sky clears) — no verification exposure needed. During calibration, the Guiding Assistant and autofocus (when N.I.N.A. stops guiding for it) the sky verdict is suspended; a lost star still counts. The imaging camera keeps measuring the sky on every frame for the dashboard; with the option *The imaging camera can also report unsafe* the 1.13 behaviour comes back (persistent N.I.N.A. transparency degradation and stale telemetry under a degraded sky as unsafe conditions, verification exposure as the way back).
 
 **Never fails toward safe** (field-validated design, v1.5): losing reliable observation of the sky is itself treated as a risk condition. The return to safe always requires positive evidence (clear sky / stable guiding). The plugin only *reports* the state with its cause; N.I.N.A. decides what to do (pause, park) according to your safety policy. Every numeric threshold has a localized tooltip explaining its exact semantics.
 
@@ -51,7 +53,9 @@ Trigger On Unsafe
     └ Recovery probe (Adaptive Agent)
 ```
 
-While conditions are unsafe it takes ONE unguided verification exposure — replicating your last light frame (exposure/gain/offset/binning) — at a configurable cadence (probe timeout, fail-safe) or earlier when the Agent's guide-star SNR hints the sky is recovering, never more often than the minimum interval. The saved probe refreshes the Agent's transparency index — **the probe image is the only path back to safe** — and the loop ends on its own the moment the monitor returns SAFE, letting the sequence resume unattended.
+**With the guide channel as judge (default since 1.14) it takes no exposures: it keeps the judge alive.** While conditions are unsafe it restarts guiding if guiding has stopped, if the guide star has been lost for longer than the minimum interval (after a long cloud the star may have drifted out of PHD2's search region), or once per probe timeout of continued unsafe; it never acts more often than the minimum interval and never on a parked mount. It ends on its own the moment the monitor returns SAFE, letting the sequence resume unattended. **Do not put instructions that stop guiding or park in the unsafe branch** (Park, Find Home, Stop Guiding): they would blind the only judge.
+
+With the legacy option *The imaging camera can also report unsafe* it runs the 1.13 loop instead: ONE unguided verification exposure — replicating your last light frame — per gate (probe timeout, or earlier on the guide-star SNR hint), and the probe image is the path back to safe.
 
 **Design guarantee — the Sequence Engine stays in charge.** The recovery loop runs entirely under N.I.N.A.'s own cancellation scope (triggers execute under the running container's linked cancellation chain — verified in the N.I.N.A. sources): when the sequence ends for any reason — end time reached, sun/moon/altitude limits (condition watchdogs interrupt within seconds), manual stop, N.I.N.A. closing — the probe loop is cancelled immediately, even mid-exposure. The plugin has no sequencer-control API at all, so once a sequence is over, a later return to SAFE changes a device flag and nothing else. The monitor protects an *active* sequence; it never becomes a second orchestrator of the session.
 
@@ -117,8 +121,9 @@ In N.I.N.A.: **Options → Plugins → Adaptive Agent for PHD2 — Dashboard**.
 | Health-check interval (s) | `15` | How often the plugin polls the Agent (range 5–120) |
 | Dashboard URL | `http://localhost:8080` | Change only if you changed the Agent's port |
 | Forward per-exposure telemetry | **on** | Toggle for function 2 above |
-| Cloud safety enabled | **on** | Index-based persistence thresholds, each with a localized tooltip |
-| Stale telemetry → unsafe | **on** | Escalates only during an active session with the last known sky degraded |
+| Cloud safety enabled | **on** | With the guide channel as judge: the guide-star collapse is the cloud path. Off = no cloud ever leads to unsafe |
+| The imaging camera can also report unsafe | **off** | On = the 1.13 sky judgement (index-based persistence, stale telemetry, verification exposures) |
+| Stale telemetry → unsafe | **on** | Only with the imaging camera as judge; escalates only during an active session with the last known sky degraded |
 | Agent lost → unsafe | **on** | Escalates only during an active session |
 | STAR_LOST consolidation (s) | `300` | How long STAR_LOST must persist before unsafe |
 
@@ -140,6 +145,8 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 
 | Version | Highlights |
 |---------|-----------|
+| **1.14** | **The guide channel judges the sky**, in both directions (needs Adaptive Agent 3.1): unsafe on a collapsed guide-star signal, safe again when the guide star confirms a clear sky — no verification exposure. The imaging camera becomes informational (the 1.13 judgement stays available as an option). STAR_LOST read on PHD2 events, so one dropped frame no longer sticks. Calibration, Guiding Assistant and autofocus never count as evidence. The Recovery probe becomes a *guide probe*: it restarts guiding when needed instead of taking exposures. A monitor reconnected after an unsafe no longer stays unsafe forever |
+| 1.13 | Focus state travels with each exposure |
 | **1.12** | Renamed to **Sky Conditions** — the device measures observing conditions; reporting unsafe is one consequence, not the whole role (N.I.N.A. stores the device by Id, so existing profiles keep working) · **separate fast and slow paths**: the guide channel (~3 s, reacts to *how fast* the sky degrades) and the imaging camera (~1 exposure, confirms *how long* it stays degraded) now have independent accumulators and thresholds, so tuning one no longer moves the other |
 | 1.11 | Meridian protection window · sky-degradation evidence from the guide channel · probe channel-ready gate |
 | **1.7** | Agent lifecycle (auto-launch + graceful shutdown with baseline restore, on by default) · self-contained **Recovery probe** loop · instant N.I.N.A. close (Agent self-kill watchdog) · UI localized EN/IT with live switch · parameter tooltips |

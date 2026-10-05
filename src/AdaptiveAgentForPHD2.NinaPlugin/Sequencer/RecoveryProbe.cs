@@ -45,12 +45,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
     /// </summary>
     [ExportMetadata("Name", "Recovery probe (Adaptive Agent)")]
     [ExportMetadata("Description",
-        "Self-contained cloud-recovery loop. Place it directly inside 'Before Waiting For Safety' of the " +
-        "Trigger On Unsafe — no extra containers needed. While the safety monitor reports unsafe, it waits " +
-        "(probe timeout as fail-safe, or earlier when the Adaptive Agent's guide-star SNR hints the sky is " +
-        "recovering — never sooner than the minimum interval) and takes ONE unguided LIGHT verification " +
-        "exposure replicating the interrupted sub. The saved probe refreshes the Agent's transparency index — " +
-        "the only path back to safe. The loop ends on its own the moment the monitor returns SAFE.")]
+        "Recovery step for the Trigger On Unsafe ('Before Waiting For Safety'). Since plugin 1.14 the guide " +
+        "channel judges the sky in both directions, so this instruction takes NO exposures: it keeps the " +
+        "judge alive instead. While unsafe it restarts guiding if guiding has stopped, if the guide star has " +
+        "been lost for longer than the minimum interval, or once per probe timeout of continued unsafe; it " +
+        "ends on its own when the monitor returns SAFE. With the legacy option 'the imaging camera can also " +
+        "report unsafe' it runs the old loop instead: unguided LIGHT verification exposures replicating the " +
+        "interrupted sub, until the monitor returns SAFE.")]
     [ExportMetadata("Icon", "HourglassSVG")]
     [ExportMetadata("Category", "Adaptive Agent for PHD2")]
     [Export(typeof(ISequenceItem))]
@@ -69,6 +70,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         private readonly IImageSaveMediator _imageSaveMediator;
         private readonly ICameraMediator _cameraMediator;
         private readonly ISafetyMonitorMediator _safetyMediator;
+        private readonly IGuiderMediator _guiderMediator;
+        private readonly ITelescopeMediator _telescopeMediator;
         private readonly HttpClient _http;
         private readonly PluginSettings _settings;
 
@@ -82,19 +85,24 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         public RecoveryProbe(IImagingMediator imagingMediator,
                              IImageSaveMediator imageSaveMediator,
                              ICameraMediator cameraMediator,
-                             ISafetyMonitorMediator safetyMonitorMediator)
+                             ISafetyMonitorMediator safetyMonitorMediator,
+                             IGuiderMediator guiderMediator,
+                             ITelescopeMediator telescopeMediator)
         {
             _imagingMediator = imagingMediator;
             _imageSaveMediator = imageSaveMediator;
             _cameraMediator = cameraMediator;
             _safetyMediator = safetyMonitorMediator;
+            _guiderMediator = guiderMediator;
+            _telescopeMediator = telescopeMediator;
             _settings = AgentServices.Instance.Settings;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         }
 
         private RecoveryProbe(RecoveryProbe cloneMe)
             : this(cloneMe._imagingMediator, cloneMe._imageSaveMediator,
-                   cloneMe._cameraMediator, cloneMe._safetyMediator)
+                   cloneMe._cameraMediator, cloneMe._safetyMediator,
+                   cloneMe._guiderMediator, cloneMe._telescopeMediator)
         {
             CopyMetaData(cloneMe);
         }
@@ -164,8 +172,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         public bool Validate()
         {
             var issues = new List<string>();
-            var cam = _cameraMediator.GetInfo();
-            if (!cam.Connected)
+            // §126 — con la guida giudice l'istruzione non scatta pose: serve la guida,
+            // non la camera (§126-bis: e' lei a far ripartire la guida se si ferma).
+            if (GuideJudge)
+            {
+                if (!_guiderMediator.GetInfo().Connected)
+                {
+                    issues.Add(Loc.T("Probe_Issue_Guider"));
+                }
+            }
+            else if (!_cameraMediator.GetInfo().Connected)
             {
                 issues.Add(Loc.T("Probe_Issue_Camera"));
             }
@@ -180,6 +196,20 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 
         public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token)
         {
+            // §126 — con la guida giudice del cielo il ritorno a SAFE non passa piu' da
+            // una posa: la sonda non serve e ritarderebbe la ripresa (nei 6 rientri
+            // storici con una sonda in posa il sub e' ripartito da 8 a 632 s dopo il
+            // SAFE). §126-bis — l'istruzione diventa la SONDA DI GUIDA: se durante
+            // l'UNSAFE la guida e' ferma, o la stella e' persa da troppo, o l'UNSAFE
+            // dura oltre la cadenza di sicurezza, fa RIPARTIRE la guida. Senza, a guida
+            // ferma nessuno poteva piu' riportare SAFE (verifica del 05/10).
+            if (GuideJudge)
+            {
+                bool versoCamera = await GuideProbeLoopAsync(progress, token).ConfigureAwait(false);
+                if (!versoCamera) { return; }
+                Logger.Info("RecoveryProbe: the imaging camera judges the sky again — switching to probe exposures");
+            }
+
             // §57-ter — CICLO COMPLETO: (attesa gate → sonda) ripetuto finche' il monitor
             // e' UNSAFE. Esce quando: SAFE (percorso normale) o cancellazione (sequenza
             // annullata / chiusura NINA). Lo stato safety viene LETTO ad ogni poll (5 s):
@@ -261,6 +291,189 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                 // Il forwarder POSTa la sonda a N1; il drain §55 impiega ~1 min a riportare
                 // SAFE se il cielo e' davvero tornato: il prossimo giro di attesa (gated dal
                 // min-interval) legge lo stato e esce.
+            }
+        }
+
+        /// <summary>§126-bis — il giudice effettivo del monitor (l'opzione finche' non e' deciso).</summary>
+        private bool GuideJudge
+        {
+            get
+            {
+                var engine = AgentServices.Instance.SafetyEngine.Value;
+                return engine.JudgeDecided ? engine.GuideJudgeActive : !_settings.ImagingCameraUnsafeEnabled;
+            }
+        }
+
+        /// <summary>
+        /// §126-bis — la sonda di guida. Non giudica e non imposta IsSafe: tiene viva la
+        /// GUIDA, che e' il giudice. Tre casi, uno alla volta, mai piu' spesso di
+        /// MinIntervalMinutes (lo stesso intervallo minimo delle pose-sonda):
+        ///   • guida NON attesa da almeno MinInterval → StartGuiding;
+        ///   • stella persa da almeno MinInterval → StopGuiding + StartGuiding: dopo una
+        ///     nube lunga la stella puo' essere uscita dalla regione di ricerca di PHD2
+        ///     (15 px), che non la ritrova piu' da solo;
+        ///   • UNSAFE da oltre la cadenza di sicurezza (TimeoutMinutes) con la guida che
+        ///     gira → un riavvio del canale: il 3/10 il guasto della camera di guida
+        ///     (SNR 74→17) si e' risolto proprio a una ripartenza della guida.
+        /// Ritorna true se nel frattempo il giudice e' tornato la camera.
+        /// </summary>
+        private async Task<bool> GuideProbeLoopAsync(IProgress<ApplicationStatus>? progress, CancellationToken token)
+        {
+            // §126-quater — con la guida giudice l'intervallo minimo e' l'unico freno ai
+            // riavvii: mai sotto 1 minuto (0 era ammesso e dava una raffica).
+            var minInterval = TimeSpan.FromMinutes(Math.Max(1.0, MinIntervalMinutes));
+            var cadenza = TimeSpan.FromMinutes(TimeoutMinutes);
+            var inizio = DateTimeOffset.UtcNow;
+            var ultimoRiavvio = inizio;
+            DateTimeOffset? nonAttesaDa = null;
+            bool toastMostrato = false;
+            Logger.Info("RecoveryProbe: the guide channel judges the sky (plugin 1.14) — no probe exposures; "
+                        + $"guiding is restarted if it stops (min interval {MinIntervalMinutes:0.#} min, "
+                        + $"channel restart every {TimeoutMinutes:0.#} min of unsafe)");
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+                if (IsSafeNow())
+                {
+                    Logger.Info("RecoveryProbe: safety monitor reports SAFE — waiting ends (no probe taken)");
+                    return false;
+                }
+                if (!GuideJudge) { return true; }
+
+                var (attesa, persa, persaDa) = await ReadGuideStatusAsync().ConfigureAwait(false);
+                var ora = DateTimeOffset.UtcNow;
+                bool liberoDaIntervallo = ora - _lastGateOpenUtc >= minInterval;
+                string? motivo = null;
+                bool fermaPrima = false;
+                if (attesa == false)
+                {
+                    nonAttesaDa ??= ora;
+                    if (ora - nonAttesaDa.Value >= minInterval && liberoDaIntervallo)
+                    {
+                        motivo = "guiding is not running";
+                    }
+                }
+                else
+                {
+                    nonAttesaDa = null;
+                    if (persa == true && (persaDa ?? 0) >= minInterval.TotalSeconds && liberoDaIntervallo)
+                    {
+                        motivo = $"guide star lost for {persaDa:0} s";
+                        fermaPrima = true;
+                    }
+                    else if (attesa == true && ora - ultimoRiavvio >= cadenza && liberoDaIntervallo)
+                    {
+                        motivo = $"still unsafe after {cadenza.TotalMinutes:0.#} min — restarting the guide channel";
+                        fermaPrima = true;
+                    }
+                }
+
+                if (motivo != null)
+                {
+                    _lastGateOpenUtc = ora;
+                    ultimoRiavvio = ora;
+                    nonAttesaDa = null;
+                    try
+                    {
+                        await RestartGuidingAsync(motivo, fermaPrima, progress, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warning($"RecoveryProbe: restarting guiding FAILED ({ex.Message}) — "
+                                       + "will retry after the minimum interval");
+                        if (!toastMostrato)
+                        {
+                            toastMostrato = true;
+                            ToastHelper.Show(() => NINA.Core.Utility.Notification.Notification.ShowWarning(
+                                string.Format(Loc.T("Toast_GuideProbeFailed"), ex.Message)));
+                        }
+                    }
+                }
+                else
+                {
+                    progress?.Report(new ApplicationStatus
+                    {
+                        Status = "Recovery probe: the guide channel is watching the sky — waiting for SAFE"
+                    });
+                }
+                await Task.Delay(PollInterval, token).ConfigureAwait(false);
+            }
+        }
+
+        private async Task RestartGuidingAsync(string motivo, bool fermaPrima,
+                                               IProgress<ApplicationStatus>? progress, CancellationToken token)
+        {
+            // §126-quater — il monitor puo' essere tornato SAFE mentre si attendeva il
+            // turno: in quel caso non si tocca niente.
+            if (IsSafeNow()) { return; }
+            var tel = _telescopeMediator.GetInfo();
+            if (!tel.Connected || tel.AtPark || !tel.TrackingEnabled || tel.Slewing)
+            {
+                // Montatura scollegata, parcheggiata, ferma o in movimento: far ripartire
+                // la guida non serve o disturba (§72: la guardia di NINA puo' aver
+                // fermato il tracking alla scadenza del flip).
+                Logger.Warning("RecoveryProbe: mount not ready (connected=" + tel.Connected
+                               + ", parked=" + tel.AtPark + ", tracking=" + tel.TrackingEnabled
+                               + ", slewing=" + tel.Slewing + ") — guiding NOT restarted");
+                return;
+            }
+            if (!_guiderMediator.GetInfo().Connected)
+            {
+                Logger.Warning("RecoveryProbe: guider not connected — guiding NOT restarted");
+                return;
+            }
+            Logger.Warning($"RecoveryProbe: {motivo} — restarting guiding so the guide channel can judge the sky");
+            progress?.Report(new ApplicationStatus { Status = "Recovery probe: restarting guiding" });
+            if (fermaPrima)
+            {
+                await _guiderMediator.StopGuiding(token).ConfigureAwait(false);
+            }
+            bool ok = await _guiderMediator.StartGuiding(false, progress, token).ConfigureAwait(false);
+            if (!ok) { throw new InvalidOperationException("start guiding did not succeed"); }
+            Logger.Info("RecoveryProbe: guiding restarted — the guide channel will confirm the sky");
+        }
+
+        /// <summary>§126-bis — GET /status → (guida attesa, stella persa, da quanti secondi).
+        /// Graceful: qualunque errore => (null, null, null) e nessuna azione.</summary>
+        private async Task<(bool? Attesa, bool? Persa, double? PersaDa)> ReadGuideStatusAsync()
+        {
+            try
+            {
+                var url = _settings.DashboardUrl.TrimEnd('/') + "/status";
+                using var response = await _http.GetAsync(url).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) { return (null, null, null); }
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("guide_health", out var gh)
+                    || gh.ValueKind != System.Text.Json.JsonValueKind.Object)
+                {
+                    return (null, null, null);
+                }
+                bool? attesa = null, persa = null;
+                double? persaDa = null;
+                if (gh.TryGetProperty("guiding_expected", out var ge))
+                {
+                    if (ge.ValueKind == System.Text.Json.JsonValueKind.True) { attesa = true; }
+                    else if (ge.ValueKind == System.Text.Json.JsonValueKind.False) { attesa = false; }
+                }
+                if (gh.TryGetProperty("star_lost", out var sl))
+                {
+                    if (sl.ValueKind == System.Text.Json.JsonValueKind.True) { persa = true; }
+                    else if (sl.ValueKind == System.Text.Json.JsonValueKind.False) { persa = false; }
+                }
+                if (gh.TryGetProperty("star_lost_s", out var sls) && sls.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    persaDa = sls.GetDouble();
+                }
+                return (attesa, persa, persaDa);
+            }
+            catch
+            {
+                return (null, null, null);
             }
         }
 

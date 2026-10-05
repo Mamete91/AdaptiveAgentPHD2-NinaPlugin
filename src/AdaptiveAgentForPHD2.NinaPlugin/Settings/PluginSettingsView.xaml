@@ -120,6 +120,17 @@
         <CheckBox Content="{Binding [Settings_Cloud_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
                   IsChecked="{Binding CloudSafetyEnabled}" />
+        <!-- §126 — chi giudica il cielo: di default la sola guida; la camera di ripresa
+             torna giudice solo se lo si chiede esplicitamente (comportamento fino al 1.13). -->
+        <CheckBox Content="{Binding [Settings_CameraJudge_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  Margin="0,6,0,0"
+                  IsChecked="{Binding ImagingCameraUnsafeEnabled}" />
+        <TextBlock Text="{Binding [Settings_CameraJudge_Help], Source={x:Static loc:Loc.Instance}}"
+                   FontSize="10"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Margin="0,2,0,4" />
         <!-- §60 — tooltip localizzati sui parametri numerici: promemoria del modello mentale
              (accumulatore leaky, gate di attivazione, effetto pratico) nel punto di decisione.
              Contenuto = TextBlock con wrapping esplicito: nessuno style implicito che

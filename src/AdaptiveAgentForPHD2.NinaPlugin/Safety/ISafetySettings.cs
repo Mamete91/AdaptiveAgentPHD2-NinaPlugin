@@ -49,5 +49,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         /// CloudUnsafePolls (che governa il percorso lento). Separarle e' il punto:
         /// tarare la persistenza del cielo non deve rallentare la reazione rapida.</summary>
         int SkyDegradingUnsafePolls { get; }
+
+        /// <summary>§126 — false (default dal 1.14): la camera di GUIDA e' l'unico
+        /// giudice del cielo, in entrambi i versi; la camera di ripresa resta
+        /// informativa. true: comportamento fino al 1.13 (percorso nubi sull'indice
+        /// di trasparenza, latch STALE, rientro concesso solo dalla posa-sonda).</summary>
+        bool ImagingCameraUnsafeEnabled { get; }
     }
 }
