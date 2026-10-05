@@ -340,33 +340,15 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                 }
                 if (!GuideJudge) { return true; }
 
-                var (attesa, persa, persaDa) = await ReadGuideStatusAsync().ConfigureAwait(false);
+                var (attesa, persa, persaDa, conferma) = await ReadGuideStatusAsync().ConfigureAwait(false);
                 var ora = DateTimeOffset.UtcNow;
                 bool liberoDaIntervallo = ora - _lastGateOpenUtc >= minInterval;
-                string? motivo = null;
-                bool fermaPrima = false;
-                if (attesa == false)
-                {
-                    nonAttesaDa ??= ora;
-                    if (ora - nonAttesaDa.Value >= minInterval && liberoDaIntervallo)
-                    {
-                        motivo = "guiding is not running";
-                    }
-                }
-                else
-                {
-                    nonAttesaDa = null;
-                    if (persa == true && (persaDa ?? 0) >= minInterval.TotalSeconds && liberoDaIntervallo)
-                    {
-                        motivo = $"guide star lost for {persaDa:0} s";
-                        fermaPrima = true;
-                    }
-                    else if (attesa == true && ora - ultimoRiavvio >= cadenza && liberoDaIntervallo)
-                    {
-                        motivo = $"still unsafe after {cadenza.TotalMinutes:0.#} min — restarting the guide channel";
-                        fermaPrima = true;
-                    }
-                }
+                if (attesa == false) { nonAttesaDa ??= ora; } else { nonAttesaDa = null; }
+                // §126-sexies — la decisione e' in GuideRestartPolicy (pura, testata).
+                var (motivo, fermaPrima) = GuideRestartPolicy.Decide(
+                    attesa, persa, persaDa, conferma,
+                    nonAttesaDa.HasValue ? ora - nonAttesaDa.Value : TimeSpan.Zero,
+                    ora - ultimoRiavvio, liberoDaIntervallo, minInterval, cadenza);
 
                 if (motivo != null)
                 {
@@ -397,7 +379,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                 {
                     progress?.Report(new ApplicationStatus
                     {
-                        Status = "Recovery probe: the guide channel is watching the sky — waiting for SAFE"
+                        Status = conferma == true
+                            ? "Recovery probe: the guide channel is confirming a clear sky — waiting for SAFE"
+                            : "Recovery probe: the guide channel is watching the sky — waiting for SAFE"
                     });
                 }
                 await Task.Delay(PollInterval, token).ConfigureAwait(false);
@@ -437,21 +421,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
             Logger.Info("RecoveryProbe: guiding restarted — the guide channel will confirm the sky");
         }
 
-        /// <summary>§126-bis — GET /status → (guida attesa, stella persa, da quanti secondi).
-        /// Graceful: qualunque errore => (null, null, null) e nessuna azione.</summary>
-        private async Task<(bool? Attesa, bool? Persa, double? PersaDa)> ReadGuideStatusAsync()
+        /// <summary>§126-bis — GET /status → (guida attesa, stella persa, da quanti secondi,
+        /// §126-sexies: la guida sta confermando il sereno).
+        /// Graceful: qualunque errore => tutto null e nessuna azione.</summary>
+        private async Task<(bool? Attesa, bool? Persa, double? PersaDa, bool? Conferma)> ReadGuideStatusAsync()
         {
             try
             {
                 var url = _settings.DashboardUrl.TrimEnd('/') + "/status";
                 using var response = await _http.GetAsync(url).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) { return (null, null, null); }
+                if (!response.IsSuccessStatusCode) { return (null, null, null, null); }
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
                 if (!doc.RootElement.TryGetProperty("guide_health", out var gh)
                     || gh.ValueKind != System.Text.Json.JsonValueKind.Object)
                 {
-                    return (null, null, null);
+                    return (null, null, null, null);
                 }
                 bool? attesa = null, persa = null;
                 double? persaDa = null;
@@ -469,11 +454,20 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
                 {
                     persaDa = sls.GetDouble();
                 }
-                return (attesa, persa, persaDa);
+                // §126-sexies — Agente 3.2: la guida sta accumulando sereno (assente prima).
+                bool? conferma = null;
+                if (doc.RootElement.TryGetProperty("recovery_hint", out var rh)
+                    && rh.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && rh.TryGetProperty("sereno_in_conferma", out var sc))
+                {
+                    if (sc.ValueKind == System.Text.Json.JsonValueKind.True) { conferma = true; }
+                    else if (sc.ValueKind == System.Text.Json.JsonValueKind.False) { conferma = false; }
+                }
+                return (attesa, persa, persaDa, conferma);
             }
             catch
             {
-                return (null, null, null);
+                return (null, null, null, null);
             }
         }
 

@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.14.0.0")]
-[assembly: AssemblyFileVersion("1.14.0.0")]
+[assembly: AssemblyVersion("1.14.1.0")]
+[assembly: AssemblyFileVersion("1.14.1.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -67,7 +67,8 @@ using System.Runtime.InteropServices;
     "SELF-RECOVERY - with the guide channel as judge (default) the Recovery probe (Adaptive Agent) " +
     "sequencer instruction takes no exposures: placed in Trigger On Unsafe it keeps the judge alive - " +
     "it restarts guiding if guiding has stopped, if the guide star has been lost for longer than the " +
-    "minimum interval, or once per probe timeout of continued unsafe - and ends on its own when the " +
+    "minimum interval, or once per probe timeout of continued unsafe (postponed while the guide is " +
+    "confirming a clear sky) - and ends on its own when the " +
     "monitor returns safe. The unsafe branch must not stop guiding or park. Only with the legacy " +
     "option 'The imaging camera can also report unsafe' does it take unguided verification exposures " +
     "replicating the interrupted light, and the probe image is then the path back to safe." +
