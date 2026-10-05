@@ -145,6 +145,7 @@ Settings are stored in `%LOCALAPPDATA%\NINA\Plugins\AdaptiveAgentForPHD2.NinaPlu
 
 | Version | Highlights |
 |---------|-----------|
+| 1.14.2 | Option texts aligned with the guide-channel judge: the return to safe after a lost star, a lost Agent or a silent guide channel also waits for the guide to confirm a clear sky (five minutes after a guide-star or exposure change during unsafe, Adaptive Agent 3.2) |
 | 1.14.1 | The guide probe no longer restarts guiding while the guide is confirming a clear sky: after a guide-star or exposure change during unsafe, Adaptive Agent 3.2 asks for five minutes of clear sky, and a restart would reset the count |
 | **1.14** | **The guide channel judges the sky**, in both directions (needs Adaptive Agent 3.1): unsafe on a collapsed guide-star signal, safe again when the guide star confirms a clear sky — no verification exposure. The imaging camera becomes informational (the 1.13 judgement stays available as an option). STAR_LOST read on PHD2 events, so one dropped frame no longer sticks. Calibration, Guiding Assistant and autofocus never count as evidence. The Recovery probe becomes a *guide probe*: it restarts guiding when needed instead of taking exposures. A monitor reconnected after an unsafe no longer stays unsafe forever |
 | 1.13 | Focus state travels with each exposure |

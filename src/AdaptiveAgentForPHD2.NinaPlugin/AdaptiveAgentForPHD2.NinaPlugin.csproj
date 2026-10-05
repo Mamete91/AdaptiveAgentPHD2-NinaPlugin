@@ -21,8 +21,8 @@
          INERTI — la versione vera e' in Properties/AssemblyInfo.cs. Restano
          allineate solo per non ingannare chi legge la csproj: erano ferme a
          1.7.0.0 mentre la DLL spedita era la 1.12.4.0. -->
-    <Version>1.14.1.0</Version>
-    <FileVersion>1.14.1.0</FileVersion>
+    <Version>1.14.2.0</Version>
+    <FileVersion>1.14.2.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
