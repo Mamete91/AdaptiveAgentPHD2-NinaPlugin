@@ -3,7 +3,7 @@
 namespace AdaptiveAgentForPHD2.NinaPlugin.Lifecycle
 {
     /// <summary>
-    /// §58 — decisioni PURE del ciclo di vita (testabili, stile RecoveryProbeGate):
+    /// §58 — decisioni PURE del ciclo di vita (testabili, stile GuideRestartPolicy):
     /// quando auto-avviare l'Agente e quando richiederne lo spegnimento graceful.
     ///
     /// Paletti del Gate §58:

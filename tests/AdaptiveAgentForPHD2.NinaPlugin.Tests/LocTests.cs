@@ -70,13 +70,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
         public void TooltipKeys_ResolveNonEmptyAndTranslated_InBothLanguages()
         {
             // §60 (tooltip parametri N6): la simmetria EN<->IT e' gia' coperta dal test
-            // generale; qui blindiamo che le 6 chiavi esistano, risolvano un testo vero
+            // generale; qui blindiamo che le chiavi esistano, risolvano un testo vero
             // (non la chiave stessa, non un placeholder corto) e siano davvero TRADOTTE.
+            // §128 — tolti i tooltip del giudizio della camera; aggiunti quelli della sonda.
             string[] tips =
             {
-                "Settings_Tip_DegradedPolls", "Settings_Tip_ClearPolls",
-                "Settings_Tip_AccumBelow", "Settings_Tip_DrainAbove",
-                "Settings_Tip_StalePolls", "Settings_Tip_AgentLostPolls",
+                "Settings_Tip_SkyDegradePolls", "Settings_Tip_ClearPolls",
+                "Settings_Tip_AgentLostPolls", "Probe_Timeout_Tip", "Probe_MinInterval_Tip",
             };
             foreach (var key in tips)
             {
@@ -99,7 +99,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             StringAssert.Contains(Loc.T("Dash_AgentOnlineV"), "{0}");
             Loc.Instance.SetLanguage("it");
             StringAssert.Contains(Loc.T("Dash_AgentOnlineV"), "{0}");
-            StringAssert.Contains(Loc.T("Toast_ProbeFailed"), "{0}");
+            StringAssert.Contains(Loc.T("Toast_GuideProbeFailed"), "{0}");
             StringAssert.Contains(Loc.T("Launch_Error"), "{0}");
         }
     }

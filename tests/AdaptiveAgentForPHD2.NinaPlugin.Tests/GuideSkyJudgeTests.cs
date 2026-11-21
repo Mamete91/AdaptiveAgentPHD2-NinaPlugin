@@ -19,21 +19,13 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             public int HealthCheckIntervalSeconds { get; set; } = 15;
             public int StarLostConsolidationSeconds { get; set; } = 180;
             public bool CloudSafetyEnabled { get; set; } = true;
-            public int CloudUnsafePolls { get; set; } = 8;
             public int ClearSafePolls { get; set; } = 2;
-            public bool UseIndexCloudLogic { get; set; } = true;
-            public double CloudIndexAccumulateBelow { get; set; } = 0.5;
-            public double CloudIndexDrainAbove { get; set; } = 0.5;
-            public bool StaleUnsafeEnabled { get; set; } = true;
-            public int StaleUnsafePolls { get; set; } = 8;
             public bool AgentLostUnsafeEnabled { get; set; } = true;
             public int AgentLostUnsafePolls { get; set; } = 4;
             public bool GuideUnobservableEnabled { get; set; } = true;
             public int GuideSilenceSeconds { get; set; } = 90;
             public int GuideUnobservablePolls { get; set; } = 3;
-            public bool SkyDegradingAccumulateEnabled { get; set; } = true;
             public int SkyDegradingUnsafePolls { get; set; } = 8;
-            public bool ImagingCameraUnsafeEnabled { get; set; } = false;
         }
 
         /// <summary>Un tick di guida sana: stella tracciata, sereno confermato, canale pronto.</summary>
@@ -82,18 +74,6 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             Assert.AreEqual(SafetyDecision.NoChange, d, "la camera di ripresa e' informativa");
         }
 
-        [TestMethod]
-        public void OpzioneLegacy_LaCameraTornaGiudice()
-        {
-            // La controprova: con l'opzione accesa ritorna il comportamento fino al 1.13.
-            var e = new SafetyDecisionEngine();
-            var s = new MinixSettings { ImagingCameraUnsafeEnabled = true };
-            var d = Run(e, s, Guida(transpState: "HAZE", index: 0.457), 8);
-            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
-            Assert.AreEqual(SafetyCause.Cloud, e.LastCause);
-            Assert.IsFalse(e.LastCloudFromGuide);
-        }
-
         // ========================================================= cielo dalla guida
         [TestMethod]
         public void SegnaleDellaGuidaCrollato_Unsafe()
@@ -106,7 +86,6 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             }
             Assert.AreEqual(SafetyDecision.BecameUnsafe, e.Evaluate(Guida(degrading: true, skyOk: false), s));
             Assert.AreEqual(SafetyCause.Cloud, e.LastCause);
-            Assert.IsTrue(e.LastCloudFromGuide);
         }
 
         [TestMethod]
@@ -260,30 +239,35 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
 
         // ============================================== §126-bis: seconda tornata
         [TestMethod]
-        public void AgenteSenzaGiudice_DecideLaCamera_ComeIl113()
+        public void AgenteSenzaGiudice_LeNubiNonSonoGiudicate()
         {
-            // Plugin 1.14 con un Agente 3.0 (o sensore spento): niente giudice guida,
-            // che chiuderebbe in uno stallo; si torna al comportamento provato.
+            // §128 — con un Agente 3.0 (o sensore del cielo spento) non c'e' piu' il ripiego
+            // sulla camera di ripresa: le nubi non portano a UNSAFE (il monitor lo avvisa),
+            // ne' dalla guida ne' dalla camera. La stella persa conta ancora.
             var e = new SafetyDecisionEngine();
             var s = new MinixSettings();
-            var d = Run(e, s, Guida(transpState: "HAZE", index: 0.457, judgeReady: false), 8);
+            Assert.AreEqual(SafetyDecision.NoChange,
+                Run(e, s, Guida(degrading: true, skyOk: false, transpState: "CLOUD", index: 0.1,
+                                judgeReady: false), 60));
+            Assert.IsTrue(e.JudgeDecided);
             Assert.IsFalse(e.GuideJudgeActive);
-            Assert.AreEqual(SafetyDecision.BecameUnsafe, d);
-            Assert.IsFalse(e.LastCloudFromGuide);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe,
+                e.Evaluate(Guida(lost: true, lostS: 200, tracked: false, judgeReady: false), s));
+            Assert.AreEqual(SafetyCause.StarLost, e.LastCause);
+            Assert.AreEqual(SafetyDecision.BecameSafe, Run(e, s, Guida(skyOk: false, judgeReady: false), 3),
+                "senza giudice del cielo la stella ritrovata basta");
         }
 
         [TestMethod]
-        public void CambioDiGiudiceALatchAcceso_NonSpegneGratis()
+        public void AgentePerso_TornaUnAgenteSenzaGiudice_NienteLatchOrfano()
         {
-            var e = new SafetyDecisionEngine();
-            var s = new MinixSettings { ImagingCameraUnsafeEnabled = true };
-            Assert.AreEqual(SafetyDecision.BecameUnsafe,
-                Run(e, s, Guida(transpState: "CLOUD", index: 0.1), 8));
-            s.ImagingCameraUnsafeEnabled = false;                 // l'operatore cambia opzione
-            Assert.AreEqual(SafetyDecision.NoChange, Run(e, s, Guida(skyOk: false), 20),
-                "il latch passa al cielo della guida, non si spegne");
-            Assert.IsTrue(e.GuideJudgeActive);
-            Assert.AreEqual(SafetyDecision.BecameSafe, Run(e, s, Guida(), 2));
+            // L'Agente sparisce a nubi in corso e torna una versione che non puo' giudicare:
+            // il latch del cielo non resta acceso per sempre (nessuno potrebbe spegnerlo);
+            // l'AGENT_LOST rientra con la stella tracciata.
+            var (e, s) = Unsafe_PerNubi();
+            Run(e, s, new AgentStatusSnapshot(null, false, AgentReachable: false), 4);
+            Assert.AreEqual(SafetyDecision.BecameSafe,
+                Run(e, s, Guida(skyOk: false, judgeReady: false), SafetyDecisionEngine.ResumeTicks));
         }
 
         [TestMethod]
@@ -322,15 +306,6 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
         }
 
         [TestMethod]
-        public void ConLaGuidaGiudice_LaCasellaDellAnticipoNonSpegneLeNubi()
-        {
-            var e = new SafetyDecisionEngine();
-            var s = new MinixSettings { SkyDegradingAccumulateEnabled = false };
-            Assert.AreEqual(SafetyDecision.BecameUnsafe,
-                Run(e, s, Guida(degrading: true, skyOk: false), 8));
-        }
-
-        [TestMethod]
         public void SicurezzaNubiSpentaALatchAcceso_IlLatchSiSpegne()
         {
             var (e, s) = Unsafe_PerNubi();
@@ -339,18 +314,19 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
         }
 
         [TestMethod]
-        public void CambioDiGiudice_AncheLaTelemetriaFermaSiTrasferisce()
+        public void BloccoDellaGuidaMancante_LaStellaRitrovataRientraComeNel114()
         {
-            // §126-quater (S7): con la camera giudice un latch STALE acceso; l'operatore
-            // passa alla guida: il latch non deve spegnersi senza evidenza.
+            // Revisione §128 — server.py sostituisce guide_health con {"enabled": false} se
+            // fallisce: StarLost null con il giudice guida gia' deciso. Come nel 1.14.3 si
+            // rientra con la guida operativa, senza passare dal cielo della guida.
             var e = new SafetyDecisionEngine();
-            var s = new MinixSettings { ImagingCameraUnsafeEnabled = true };
-            e.Evaluate(Guida(transpState: "CLOUD", index: 0.08), s);
-            Assert.AreEqual(SafetyDecision.BecameUnsafe,
-                Run(e, s, Guida(transpState: "CLOUD", fresh: false, index: null, skyOk: false), 8));
-            s.ImagingCameraUnsafeEnabled = false;
-            Assert.AreEqual(SafetyDecision.NoChange, Run(e, s, Guida(skyOk: false), 10));
-            Assert.AreEqual(SafetyDecision.BecameSafe, Run(e, s, Guida(), 2));
+            var s = new MinixSettings { StarLostConsolidationSeconds = 60 };
+            e.Evaluate(Guida(), s);                                   // giudice guida deciso
+            Assert.IsTrue(e.GuideJudgeActive);
+            var senzaBlocco = new AgentStatusSnapshot("STAR_LOST", true, GuideJudgeReady: true);
+            Assert.AreEqual(SafetyDecision.BecameUnsafe, Run(e, s, senzaBlocco, 4));
+            Assert.AreEqual(SafetyDecision.BecameSafe,
+                Run(e, s, new AgentStatusSnapshot("NORMAL", true, GuideJudgeReady: true), 3));
         }
 
         [TestMethod]

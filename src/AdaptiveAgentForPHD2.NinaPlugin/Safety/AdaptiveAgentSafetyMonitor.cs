@@ -67,8 +67,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.14.3.0 — sky conditions monitor (virtual safety device)";
-        public string DriverVersion => "1.14.3.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.15.0.0 — sky conditions monitor (virtual safety device)";
+        public string DriverVersion => "1.15.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -257,22 +257,17 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             {
                 if (_engine.GuideJudgeActive)
                 {
-                    Logger.Info("Adaptive Agent Safety Monitor: the guide channel judges the sky (plugin 1.14)");
-                }
-                else if (!_settings.ImagingCameraUnsafeEnabled)
-                {
-                    // L'opzione chiede la guida ma l'Agente non puo' farlo (versione
-                    // vecchia, sensore spento): si torna al comportamento 1.13.
-                    Logger.Warning("Adaptive Agent Safety Monitor: the Agent cannot act as sky judge "
-                                   + "(Agent older than 3.1, or its sky sensor is off) — the imaging "
-                                   + "camera judges the sky, as in plugin 1.13");
-                    // §126-quater — non in silenzio: con l'Agente 3.0 tornerebbe il
-                    // giudizio della camera che il 3-4/10 ha fermato la notte.
-                    ShowToast(() => Notification.ShowWarning(Loc.T("Toast_CameraJudgeFallback")));
+                    Logger.Info("Adaptive Agent Safety Monitor: the guide channel judges the sky");
                 }
                 else
                 {
-                    Logger.Info("Adaptive Agent Safety Monitor: the imaging camera judges the sky (legacy option)");
+                    // §128 — l'Agente non puo' fare da giudice (versione vecchia, sensore del
+                    // cielo spento). Non c'e' piu' il ripiego sulla camera di ripresa: le nubi
+                    // non vengono giudicate, e lo si dice ad alta voce.
+                    Logger.Warning("Adaptive Agent Safety Monitor: the running Agent cannot judge the sky "
+                                   + "(older than 3.1, or its sky sensor is off) — clouds are NOT judged; "
+                                   + "lost star, silent guide channel and lost Agent still are");
+                    ShowToast(() => Notification.ShowWarning(Loc.T("Toast_SkyJudgeUnavailable")));
                 }
             }
             switch (decision)
@@ -281,23 +276,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     _internalSafe = false;
                     switch (_engine.LastCause)
                     {
-                        case SafetyCause.Cloud when _engine.LastCloudFromGuide:
-                            // §126 — il latch del cielo acceso dal giudice guida.
+                        case SafetyCause.Cloud:
                             Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — guide-star signal collapsed "
                                         + "below half of its clear-sky reference (clouds, or a guide-camera fault), "
                                         + "judged by the guide channel");
                             ShowToast(() => Notification.ShowWarning(
                                 Loc.T("Toast_GuideSkyUnsafe")));
-                            break;
-                        case SafetyCause.Cloud:
-                            Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — persistent transparency degradation (clouds)");
-                            ShowToast(() => Notification.ShowWarning(
-                                Loc.T("Toast_CloudsUnsafe")));
-                            break;
-                        case SafetyCause.StaleTelemetry:
-                            Logger.Info($"Adaptive Agent Safety Monitor: UNSAFE — NINA telemetry stale for {_settings.StaleUnsafePolls} polls while last known sky was degraded");
-                            ShowToast(() => Notification.ShowWarning(
-                                Loc.T("Toast_StaleUnsafe")));
                             break;
                         case SafetyCause.GuideUnobservable:
                             Logger.Info("Adaptive Agent Safety Monitor: UNSAFE — guide channel unobservable "
@@ -395,7 +379,6 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                     cause = attuale switch
                     {
                         SafetyCause.Cloud => "CLOUD",
-                        SafetyCause.StaleTelemetry => "STALE_TELEMETRY",
                         SafetyCause.AgentLost => "AGENT_LOST",
                         SafetyCause.GuideUnobservable => "GUIDE_UNOBSERVABLE",
                         SafetyCause.StarLost => "STAR_LOST",
@@ -412,12 +395,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             }
         }
 
-        /// <summary>§126-bis — il giudice EFFETTIVO (non l'opzione): finche' non e' deciso,
-        /// quello che l'opzione chiede.</summary>
+        /// <summary>§126-bis/§128 — chi giudica il cielo, per l'Agente e la dashboard: "GUIDE",
+        /// oppure "NONE" se l'Agente in esecuzione non puo' farlo (le nubi non sono giudicate).
+        /// Finche' non e' deciso si assume la guida.</summary>
         private string JudgeName()
-            => _engine.JudgeDecided
-                ? (_engine.GuideJudgeActive ? "GUIDE" : "CAMERA")
-                : (_settings.ImagingCameraUnsafeEnabled ? "CAMERA" : "GUIDE");
+            => _engine.JudgeDecided && !_engine.GuideJudgeActive ? "NONE" : "GUIDE";
 
         /// <summary>
         /// §72 — un tick della protezione meridiano: legge montatura e profilo (fail-inert:

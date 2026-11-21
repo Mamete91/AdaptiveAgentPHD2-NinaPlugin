@@ -6,7 +6,10 @@
 
     <!-- DataContext = PluginSettings (impostato dal DataTemplate _Options).
          §60: tutte le stringhe vengono dalle Resource via Loc (indexer bindabile,
-         pattern NINA): il cambio lingua aggiorna la pagina LIVE. -->
+         pattern NINA): il cambio lingua aggiorna la pagina LIVE.
+         §128 (1.15): pagina riordinata in sezioni; tolte le impostazioni del giudizio
+         della camera di ripresa (dal 1.14 il cielo lo giudica la sola camera di guida). -->
+
     <StackPanel Margin="10" MaxWidth="560" HorizontalAlignment="Left">
 
         <TextBlock Text="{Binding [Settings_Title], Source={x:Static loc:Loc.Instance}}"
@@ -15,14 +18,10 @@
                    Margin="0,0,0,10" />
 
         <!-- §60 — lingua del plugin -->
-        <TextBlock Text="{Binding [Settings_Language_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,4,0,2" />
-        <TextBlock Text="{Binding [Settings_Language_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <TextBlock FontWeight="SemiBold" Margin="0,4,0,2"
+                   Text="{Binding [Settings_Language_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_Language_Help], Source={x:Static loc:Loc.Instance}}" />
         <ComboBox Width="200"
                   HorizontalAlignment="Left"
                   SelectedValuePath="Tag"
@@ -33,15 +32,15 @@
             <ComboBoxItem Tag="it" Content="Italiano" />
         </ComboBox>
 
-        <!-- Percorso launcher -->
-        <TextBlock Text="{Binding [Settings_BatPath_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_BatPath_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <!-- ================================================ collegamento all'Agente -->
+        <TextBlock FontWeight="Bold" FontSize="13" Margin="0,20,0,4"
+                   Text="{Binding [Settings_Section_Agent], Source={x:Static loc:Loc.Instance}}" />
+        <Separator />
+
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_BatPath_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_BatPath_Help], Source={x:Static loc:Loc.Instance}}" />
         <DockPanel LastChildFill="True">
             <Button DockPanel.Dock="Right"
                     Content="{Binding [Settings_Browse], Source={x:Static loc:Loc.Instance}}"
@@ -53,100 +52,74 @@
                      Padding="4,3" />
         </DockPanel>
 
-        <!-- Intervallo di polling -->
-        <TextBlock Text="{Binding [Settings_Interval_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_Interval_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_Interval_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_Interval_Help], Source={x:Static loc:Loc.Instance}}" />
         <TextBox Width="80"
                  HorizontalAlignment="Left"
                  Padding="4,3"
                  Text="{Binding HealthCheckIntervalSeconds, UpdateSourceTrigger=LostFocus}" />
 
-        <!-- URL dashboard -->
-        <TextBlock Text="{Binding [Settings_DashUrl_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_DashUrl_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_DashUrl_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_DashUrl_Help], Source={x:Static loc:Loc.Instance}}" />
         <TextBox Width="280"
                  HorizontalAlignment="Left"
                  Padding="4,3"
                  Text="{Binding DashboardUrl, UpdateSourceTrigger=LostFocus}" />
 
-        <!-- Inoltro telemetria per-posa (§42) -->
-        <TextBlock Text="{Binding [Settings_Telemetry_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_Telemetry_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <!-- §42 — inoltro della telemetria per-posa (informazione per la dashboard) -->
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_Telemetry_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_Telemetry_Help], Source={x:Static loc:Loc.Instance}}" />
         <CheckBox Content="{Binding [Settings_Telemetry_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
                   IsChecked="{Binding ForwardTelemetryToAgent}" />
 
-        <!-- Safety Monitor: consolidamento STAR_LOST -->
-        <TextBlock Text="{Binding [Settings_StarLost_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_StarLost_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
-        <TextBox Width="80"
-                 HorizontalAlignment="Left"
-                 Padding="4,3"
-                 Text="{Binding StarLostConsolidationSeconds, UpdateSourceTrigger=LostFocus}" />
+        <!-- §58 — ciclo di vita -->
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_Lifecycle_Label], Source={x:Static loc:Loc.Instance}}" />
+        <CheckBox Content="{Binding [Settings_AutoLaunch_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  IsChecked="{Binding AutoLaunchEnabled}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_AutoLaunch_Help], Source={x:Static loc:Loc.Instance}}" />
+        <CheckBox Content="{Binding [Settings_ManageExt_Check], Source={x:Static loc:Loc.Instance}}"
+                  HorizontalAlignment="Left"
+                  IsChecked="{Binding ManageExternalAgent}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_ManageExt_Help], Source={x:Static loc:Loc.Instance}}" />
 
-        <!-- Safety su nubi (§49 N6 + fix v1.5) -->
-        <TextBlock Text="{Binding [Settings_Cloud_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_Cloud_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,4" />
+        <!-- ================================================ il cielo dalla guida (§126) -->
+        <TextBlock FontWeight="Bold" FontSize="13" Margin="0,20,0,4"
+                   Text="{Binding [Settings_Section_Sky], Source={x:Static loc:Loc.Instance}}" />
+        <Separator />
+
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,6,0,4"
+                   Text="{Binding [Settings_Cloud_Help], Source={x:Static loc:Loc.Instance}}" />
         <CheckBox Content="{Binding [Settings_Cloud_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
                   IsChecked="{Binding CloudSafetyEnabled}" />
-        <!-- §126 — chi giudica il cielo: di default la sola guida; la camera di ripresa
-             torna giudice solo se lo si chiede esplicitamente (comportamento fino al 1.13). -->
-        <CheckBox Content="{Binding [Settings_CameraJudge_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  Margin="0,6,0,0"
-                  IsChecked="{Binding ImagingCameraUnsafeEnabled}" />
-        <TextBlock Text="{Binding [Settings_CameraJudge_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <!-- §60 — tooltip localizzati sui parametri numerici: promemoria del modello mentale
-             (accumulatore leaky, gate di attivazione, effetto pratico) nel punto di decisione.
-             Contenuto = TextBlock con wrapping esplicito: nessuno style implicito che
-             scavalcherebbe il tema tooltip di NINA. -->
-        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-          <TextBlock Text="{Binding [Settings_DegradedPolls], Source={x:Static loc:Loc.Instance}}"
+        <!-- §60 — tooltip localizzati sui parametri numerici. Contenuto = TextBlock con
+             wrapping esplicito: nessuno style implicito che scavalcherebbe il tema tooltip di NINA.
+             §128 — la soglia delle nubi non dipende piu' da nessuna casella: prima era
+             grigia se si spegneva "dichiara unsafe prima", che valeva solo per la camera. -->
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                    IsEnabled="{Binding CloudSafetyEnabled}">
+          <TextBlock Text="{Binding [Settings_SkyDegrade_Polls], Source={x:Static loc:Loc.Instance}}"
                      VerticalAlignment="Center" Opacity="0.8">
             <TextBlock.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_DegradedPolls], Source={x:Static loc:Loc.Instance}}"
+              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
                          TextWrapping="Wrap" MaxWidth="360" />
             </TextBlock.ToolTip>
           </TextBlock>
           <TextBox Width="60" Margin="6,0,14,0" Padding="4,3"
-                   Text="{Binding CloudUnsafePolls, UpdateSourceTrigger=LostFocus}">
+                   Text="{Binding SkyDegradingUnsafePolls, UpdateSourceTrigger=LostFocus}">
             <TextBox.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_DegradedPolls], Source={x:Static loc:Loc.Instance}}"
+              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
                          TextWrapping="Wrap" MaxWidth="360" />
             </TextBox.ToolTip>
           </TextBox>
@@ -166,85 +139,52 @@
           </TextBox>
         </StackPanel>
 
-        <!-- Persistenza sull'indice (v1.5 §2) -->
-        <CheckBox Content="{Binding [Settings_Index_Check], Source={x:Static loc:Loc.Instance}}"
+        <!-- ================================================ stella, canale di guida, Agente -->
+        <TextBlock FontWeight="Bold" FontSize="13" Margin="0,20,0,4"
+                   Text="{Binding [Settings_Section_Watch], Source={x:Static loc:Loc.Instance}}" />
+        <Separator />
+
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_StarLost_Label], Source={x:Static loc:Loc.Instance}}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,4"
+                   Text="{Binding [Settings_StarLost_Help], Source={x:Static loc:Loc.Instance}}" />
+        <TextBox Width="80"
+                 HorizontalAlignment="Left"
+                 Padding="4,3"
+                 Text="{Binding StarLostConsolidationSeconds, UpdateSourceTrigger=LostFocus}" />
+
+        <!-- §68 — osservabilità del canale di guida (non la sua qualità) -->
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_GuideObs_Label], Source={x:Static loc:Loc.Instance}}" />
+        <CheckBox Content="{Binding [Settings_GuideObs_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
-                  Margin="0,8,0,0"
-                  IsChecked="{Binding UseIndexCloudLogic}" />
-        <TextBlock Text="{Binding [Settings_Index_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="{Binding [Settings_AccumBelow], Source={x:Static loc:Loc.Instance}}"
-                     VerticalAlignment="Center" Opacity="0.8">
-            <TextBlock.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_AccumBelow], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBlock.ToolTip>
-          </TextBlock>
+                  IsChecked="{Binding GuideUnobservableEnabled}" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_GuideObs_Help], Source={x:Static loc:Loc.Instance}}" />
+        <StackPanel Orientation="Horizontal" IsEnabled="{Binding GuideUnobservableEnabled}">
+          <TextBlock VerticalAlignment="Center" Opacity="0.8"
+                     Text="{Binding [Settings_GuideSilence], Source={x:Static loc:Loc.Instance}}"
+                     ToolTip="{Binding [Settings_GuideSilence_Tip], Source={x:Static loc:Loc.Instance}}" />
           <TextBox Width="60" Margin="6,0,14,0" Padding="4,3"
-                   Text="{Binding CloudIndexAccumulateBelow, UpdateSourceTrigger=LostFocus}">
-            <TextBox.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_AccumBelow], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBox.ToolTip>
-          </TextBox>
-          <TextBlock Text="{Binding [Settings_DrainAbove], Source={x:Static loc:Loc.Instance}}"
-                     VerticalAlignment="Center" Opacity="0.8">
-            <TextBlock.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_DrainAbove], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBlock.ToolTip>
-          </TextBlock>
+                   ToolTip="{Binding [Settings_GuideSilence_Tip], Source={x:Static loc:Loc.Instance}}"
+                   Text="{Binding GuideSilenceSeconds, UpdateSourceTrigger=LostFocus}" />
+          <TextBlock VerticalAlignment="Center" Opacity="0.8"
+                     Text="{Binding [Settings_GuidePolls], Source={x:Static loc:Loc.Instance}}"
+                     ToolTip="{Binding [Settings_GuidePolls_Tip], Source={x:Static loc:Loc.Instance}}" />
           <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
-                   Text="{Binding CloudIndexDrainAbove, UpdateSourceTrigger=LostFocus}">
-            <TextBox.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_DrainAbove], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBox.ToolTip>
-          </TextBox>
+                   ToolTip="{Binding [Settings_GuidePolls_Tip], Source={x:Static loc:Loc.Instance}}"
+                   Text="{Binding GuideUnobservablePolls, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
 
-        <!-- Telemetria stantia (v1.5 §1) -->
-        <CheckBox Content="{Binding [Settings_Stale_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  Margin="0,8,0,0"
-                  IsChecked="{Binding StaleUnsafeEnabled}" />
-        <TextBlock Text="{Binding [Settings_Stale_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="{Binding [Settings_StalePolls], Source={x:Static loc:Loc.Instance}}"
-                     VerticalAlignment="Center" Opacity="0.8">
-            <TextBlock.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_StalePolls], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBlock.ToolTip>
-          </TextBlock>
-          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
-                   Text="{Binding StaleUnsafePolls, UpdateSourceTrigger=LostFocus}">
-            <TextBox.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_StalePolls], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBox.ToolTip>
-          </TextBox>
-        </StackPanel>
-
-        <!-- Agente irraggiungibile (v1.5 §5) -->
+        <!-- Fix N6 §5 — Agente irraggiungibile -->
+        <TextBlock FontWeight="SemiBold" Margin="0,10,0,2"
+                   Text="{Binding [Settings_AgentLost_Label], Source={x:Static loc:Loc.Instance}}" />
         <CheckBox Content="{Binding [Settings_AgentLost_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
-                  Margin="0,8,0,0"
                   IsChecked="{Binding AgentLostUnsafeEnabled}" />
-        <TextBlock Text="{Binding [Settings_AgentLost_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <StackPanel Orientation="Horizontal">
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_AgentLost_Help], Source={x:Static loc:Loc.Instance}}" />
+        <StackPanel Orientation="Horizontal" IsEnabled="{Binding AgentLostUnsafeEnabled}">
           <TextBlock Text="{Binding [Settings_AgentLostPolls], Source={x:Static loc:Loc.Instance}}"
                      VerticalAlignment="Center" Opacity="0.8">
             <TextBlock.ToolTip>
@@ -261,108 +201,17 @@
           </TextBox>
         </StackPanel>
 
-        <!-- v1.7 §58 — ciclo di vita -->
-        <TextBlock Text="{Binding [Settings_Lifecycle_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <CheckBox Content="{Binding [Settings_AutoLaunch_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  IsChecked="{Binding AutoLaunchEnabled}" />
-        <TextBlock Text="{Binding [Settings_AutoLaunch_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <CheckBox Content="{Binding [Settings_ManageExt_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  IsChecked="{Binding ManageExternalAgent}" />
-        <TextBlock Text="{Binding [Settings_ManageExt_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-
-        <!-- §68 — osservabilità del canale di guida (non la sua qualità) -->
-        <TextBlock Text="{Binding [Settings_GuideObs_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <CheckBox Content="{Binding [Settings_GuideObs_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  IsChecked="{Binding GuideUnobservableEnabled}" />
-        <TextBlock Text="{Binding [Settings_GuideObs_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <StackPanel Orientation="Horizontal">
-          <TextBlock VerticalAlignment="Center" Opacity="0.8"
-                     Text="{Binding [Settings_GuideSilence], Source={x:Static loc:Loc.Instance}}"
-                     ToolTip="{Binding [Settings_GuideSilence_Tip], Source={x:Static loc:Loc.Instance}}" />
-          <TextBox Width="60" Margin="6,0,14,0" Padding="4,3"
-                   ToolTip="{Binding [Settings_GuideSilence_Tip], Source={x:Static loc:Loc.Instance}}"
-                   Text="{Binding GuideSilenceSeconds, UpdateSourceTrigger=LostFocus}" />
-          <TextBlock VerticalAlignment="Center" Opacity="0.8"
-                     Text="{Binding [Settings_GuidePolls], Source={x:Static loc:Loc.Instance}}"
-                     ToolTip="{Binding [Settings_GuidePolls_Tip], Source={x:Static loc:Loc.Instance}}" />
-          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
-                   ToolTip="{Binding [Settings_GuidePolls_Tip], Source={x:Static loc:Loc.Instance}}"
-                   Text="{Binding GuideUnobservablePolls, UpdateSourceTrigger=LostFocus}" />
-        </StackPanel>
-
-        <!-- §76 — il canale guida può anticipare l'unsafe -->
-        <CheckBox Content="{Binding [Settings_SkyDegrade_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  Margin="0,14,0,0"
-                  IsChecked="{Binding SkyDegradingAccumulateEnabled}" />
-        <TextBlock Text="{Binding [Settings_SkyDegrade_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <!-- §79 — soglia PROPRIA del percorso rapido: tarare la persistenza del cielo
-             (impostazione "Degradato -> unsafe") non deve rallentare questa. -->
-        <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
-                    IsEnabled="{Binding SkyDegradingAccumulateEnabled}">
-          <TextBlock Text="{Binding [Settings_SkyDegrade_Polls], Source={x:Static loc:Loc.Instance}}"
-                     VerticalAlignment="Center" Opacity="0.8">
-            <TextBlock.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBlock.ToolTip>
-          </TextBlock>
-          <TextBox Width="60" Margin="6,0,0,0" Padding="4,3"
-                   Text="{Binding SkyDegradingUnsafePolls, UpdateSourceTrigger=LostFocus}">
-            <TextBox.ToolTip>
-              <TextBlock Text="{Binding [Settings_Tip_SkyDegradePolls], Source={x:Static loc:Loc.Instance}}"
-                         TextWrapping="Wrap" MaxWidth="360" />
-            </TextBox.ToolTip>
-          </TextBox>
-        </StackPanel>
-
-        <!-- §71 — gate della sonda sul canale guida -->
-        <CheckBox Content="{Binding [Settings_ProbeGate_Check], Source={x:Static loc:Loc.Instance}}"
-                  HorizontalAlignment="Left"
-                  Margin="0,14,0,0"
-                  IsChecked="{Binding ProbeChannelGateEnabled}" />
-        <TextBlock Text="{Binding [Settings_ProbeGate_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-
-        <!-- §72 — protezione meridiano -->
-        <TextBlock Text="{Binding [Settings_Meridian_Label], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
+        <!-- ================================================ protezione meridiano (§72) -->
+        <TextBlock FontWeight="Bold" FontSize="13" Margin="0,20,0,4"
+                   Text="{Binding [Settings_Meridian_Label], Source={x:Static loc:Loc.Instance}}" />
+        <Separator />
         <CheckBox Content="{Binding [Settings_Meridian_Check], Source={x:Static loc:Loc.Instance}}"
                   HorizontalAlignment="Left"
+                  Margin="0,6,0,0"
                   IsChecked="{Binding MeridianProtectionEnabled}" />
-        <TextBlock Text="{Binding [Settings_Meridian_Help], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,4" />
-        <StackPanel Orientation="Horizontal">
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_Meridian_Help], Source={x:Static loc:Loc.Instance}}" />
+        <StackPanel Orientation="Horizontal" IsEnabled="{Binding MeridianProtectionEnabled}">
           <TextBlock VerticalAlignment="Center" Opacity="0.8"
                      Text="{Binding [Settings_MeridianLead], Source={x:Static loc:Loc.Instance}}"
                      ToolTip="{Binding [Settings_MeridianLead_Tip], Source={x:Static loc:Loc.Instance}}" />
@@ -371,24 +220,18 @@
                    Text="{Binding MeridianLeadMinutes, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
 
-        <!-- §58-ter — mini-guida al recovery automatico -->
-        <TextBlock Text="{Binding [Settings_Recovery_Title], Source={x:Static loc:Loc.Instance}}"
-                   FontWeight="SemiBold"
-                   Margin="0,14,0,2" />
-        <TextBlock Text="{Binding [Settings_Recovery_Intro], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,2" />
+        <!-- ================================================ recupero automatico -->
+        <TextBlock FontWeight="Bold" FontSize="13" Margin="0,20,0,4"
+                   Text="{Binding [Settings_Recovery_Title], Source={x:Static loc:Loc.Instance}}" />
+        <Separator />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,6,0,2"
+                   Text="{Binding [Settings_Recovery_Intro], Source={x:Static loc:Loc.Instance}}" />
         <TextBlock FontFamily="Consolas"
                    FontSize="11"
                    Margin="8,2,0,2"
                    Text="Trigger On Unsafe&#10; └ Before Waiting For Safety&#10;    └ Recovery probe (Adaptive Agent)" />
-        <TextBlock Text="{Binding [Settings_Recovery_Body], Source={x:Static loc:Loc.Instance}}"
-                   FontSize="10"
-                   Opacity="0.7"
-                   TextWrapping="Wrap"
-                   Margin="0,2,0,0" />
+        <TextBlock FontSize="10" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,4"
+                   Text="{Binding [Settings_Recovery_Body], Source={x:Static loc:Loc.Instance}}" />
 
         <TextBlock Text="{Binding [Settings_SavedAuto], Source={x:Static loc:Loc.Instance}}"
                    FontSize="10"

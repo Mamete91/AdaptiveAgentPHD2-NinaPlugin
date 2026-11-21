@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.14.3.0")]
-[assembly: AssemblyFileVersion("1.14.3.0")]
+[assembly: AssemblyVersion("1.15.0.0")]
+[assembly: AssemblyFileVersion("1.15.0.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -44,34 +44,31 @@ using System.Runtime.InteropServices;
     "SKY CONDITIONS MONITOR - a virtual device that measures observing conditions continuously " +
     "and reports them through the N.I.N.A. safety-device interface (it appears under the Safety " +
     "Monitor equipment category, which is the N.I.N.A. name for the slot, not this monitor's " +
-    "role). Since 1.14 the guide channel is the judge of the sky, in both directions: the guide " +
-    "star sits in the same telescope as the imaging camera (off-axis guider) and is sampled every " +
-    "few seconds, also while the sequence is paused (requires Adaptive Agent 3.1 or later; with an " +
-    "older Agent the imaging camera judges the sky, as in 1.13). It reports unsafe on: sustained " +
+    "role). The guide channel is the judge of the sky, in both directions: the guide star sits in " +
+    "the same telescope as the imaging camera (off-axis guider) and is sampled every few seconds, " +
+    "also while the sequence is paused (requires Adaptive Agent 3.1 or later; with an older Agent " +
+    "clouds are not judged and a warning says so). It reports unsafe on: sustained " +
     "STAR_LOST; a guide-star signal below half of its clear-sky reference (about 3.5 minutes with the " +
     "factory settings - clouds, or a guide-camera fault); a guide channel gone silent while guiding " +
     "was expected; loss of the Agent during an active session. It returns safe when the guide star " +
     "stays above 80% of its reference for a minute and is tracked steadily - no verification exposure " +
     "needed. During calibration, the Guiding Assistant and autofocus (when N.I.N.A. stops guiding for " +
     "it) the sky verdict is suspended; a lost star still counts. The imaging camera keeps measuring " +
-    "the sky on every frame but is informational only (the 1.13 imaging-camera judgement can be " +
-    "re-enabled in the options). The monitor only ever reports - the N.I.N.A. Sequence Engine always " +
+    "the sky on every frame, for information only. The monitor only ever reports - the N.I.N.A. Sequence Engine always " +
     "stays in charge of the sequence." +
     "\n\n" +
     "MERIDIAN PROTECTION - a bounded window (on by default) that lets the mechanical flip run at " +
-    "its deadline even while conditions are unsafe, then restores the unsafe hold immediately. " +
+    "its deadline even while conditions are unsafe, and covers N.I.N.A.'s whole flip (recenter and " +
+    "guiding resumed included) before restoring the unsafe hold. " +
     "Without it, N.I.N.A. stops tracking at the deadline and nothing ever restarts it: the guide " +
     "star drifts away and the night ends there, even if the sky clears. The window authorises the " +
     "manoeuvre only; it never passes judgement on the sky." +
     "\n\n" +
-    "SELF-RECOVERY - with the guide channel as judge (default) the Recovery probe (Adaptive Agent) " +
-    "sequencer instruction takes no exposures: placed in Trigger On Unsafe it keeps the judge alive - " +
-    "it restarts guiding if guiding has stopped, if the guide star has been lost for longer than the " +
-    "minimum interval, or once per probe timeout of continued unsafe (postponed while the guide is " +
-    "confirming a clear sky) - and ends on its own when the " +
-    "monitor returns safe. The unsafe branch must not stop guiding or park. Only with the legacy " +
-    "option 'The imaging camera can also report unsafe' does it take unguided verification exposures " +
-    "replicating the interrupted light, and the probe image is then the path back to safe." +
+    "SELF-RECOVERY - the Recovery probe (Adaptive Agent) sequencer instruction takes no exposures: " +
+    "placed in Trigger On Unsafe it keeps the judge alive - it restarts guiding if guiding has " +
+    "stopped, if the guide star has been lost for longer than the minimum interval, or once per " +
+    "restart interval of continued unsafe (postponed while the guide is confirming a clear sky) - " +
+    "and ends on its own when the monitor returns safe. The unsafe branch must not stop guiding or park." +
     "\n\n" +
     "AGENT LIFECYCLE - on by default: auto-launches the Agent when N.I.N.A. starts and shuts it " +
     "down gracefully on close, restoring the PHD2 baseline." +

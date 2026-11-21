@@ -5,7 +5,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
 {
     /// <summary>
     /// §126-quater/sexies — logica PURA della sonda di guida (estratta per unit-test, come
-    /// RecoveryProbeGate): durante un UNSAFE con la guida giudice, quando far ripartire la
+    /// SafetyDecisionEngine): durante un UNSAFE con la guida giudice, quando far ripartire la
     /// guida. Nessun mediator, nessun orologio: decide sui fatti che riceve.
     ///
     /// Tre motivi, nell'ordine:

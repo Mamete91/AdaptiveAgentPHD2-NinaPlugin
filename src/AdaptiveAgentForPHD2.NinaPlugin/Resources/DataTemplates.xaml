@@ -30,8 +30,7 @@
     <!--
         §57-bis — editor inline dell'istruzione RecoveryProbe (DataTemplate per DataType:
         e' cosi' che NINA risolve la riga dell'istruzione nell'Advanced Sequencer).
-        L'esposizione della sonda replica l'ultimo LIGHT salvato; il fallback vale solo
-        se nessun light e' ancora stato visto in sessione.
+        §128 — sonda di guida: solo "Riavvio guida dopo" e "Intervallo minimo".
 
         §64-ter — CONVENZIONE NINA (dal template nativo di WaitForTime): la RADICE del
         template deve essere il wrapper `view:SequenceBlockView`, con l'editor dentro
@@ -45,19 +44,14 @@
         <!-- §64 — NB: il tema di NINA stila CheckBox come interruttore ON/OFF e NON
              rende il Content: ogni etichetta deve essere un TextBlock separato (stessa
              convenzione della pagina Opzioni). Tooltip su etichetta E campo, localizzati. -->
+        <!-- §128 — solo la sonda di guida: via "Cadenza automatica" e "Posa di ripiego"
+             (pose-sonda della camera di ripresa). Il campo del riavvio era grigio con la
+             cadenza automatica accesa (cioe' sempre, di fabbrica): ora e' modificabile. -->
         <StackPanel Orientation="Horizontal">
-            <CheckBox VerticalAlignment="Center"
-                      ToolTip="{Binding [Probe_AutoTimeout_Tip], Source={x:Static loc:Loc.Instance}}"
-                      IsChecked="{Binding AutoTimeout}" />
-            <TextBlock VerticalAlignment="Center" Margin="6,0,0,0"
-                       Text="{Binding [Probe_AutoTimeout], Source={x:Static loc:Loc.Instance}}"
-                       ToolTip="{Binding [Probe_AutoTimeout_Tip], Source={x:Static loc:Loc.Instance}}" />
-
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
+            <TextBlock VerticalAlignment="Center"
                        Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}"
                        ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}" />
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
-                     IsEnabled="{Binding ManualTimeoutEnabled}"
                      ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}"
                      Text="{Binding TimeoutMinutes}" />
 
@@ -67,13 +61,6 @@
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
                      ToolTip="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}"
                      Text="{Binding MinIntervalMinutes}" />
-
-            <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
-                       Text="{Binding [Probe_FallbackExp], Source={x:Static loc:Loc.Instance}}"
-                       ToolTip="{Binding [Probe_FallbackExp_Tip], Source={x:Static loc:Loc.Instance}}" />
-            <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
-                     ToolTip="{Binding [Probe_FallbackExp_Tip], Source={x:Static loc:Loc.Instance}}"
-                     Text="{Binding FallbackExposureSeconds}" />
         </StackPanel>
         </view:SequenceBlockView.SequenceItemContent>
       </view:SequenceBlockView>

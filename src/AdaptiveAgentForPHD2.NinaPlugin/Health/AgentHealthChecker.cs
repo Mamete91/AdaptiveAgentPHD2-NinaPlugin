@@ -50,7 +50,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
         bool SkyOk = false,                 // SNR sopra il recupero (80%), sostenuta 60 s
         bool? ChannelReady = null,          // §71 — stella tracciata in modo stabile
         // §126-bis — l'Agente DICHIARA di poter fare da giudice del cielo (3.1+,
-        // sensore acceso e canale osservato). Assente o falso => giudice camera (1.13).
+        // sensore acceso e canale osservato). Assente o falso => nessun giudice delle nubi (§128).
         bool GuideJudgeReady = false);
 
     /// <summary>
@@ -325,7 +325,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Health
                     // §126 — evidenza di sereno dalla guida (Agente 3.1). §126-bis: nessun
                     // ripiego su `active` dell'Agente 3.0, che resta falso finche' la
                     // camera dice sereno: dava l'illusione di compatibilita' e chiudeva
-                    // in uno stallo. Con un Agente vecchio decide la camera (1.13).
+                    // in uno stallo. Con un Agente vecchio le nubi non sono giudicate (§128).
                     if (rhBlock.TryGetProperty("sky_ok", out var ok))
                     {
                         skyOk = ok.ValueKind == JsonValueKind.True;
