@@ -68,7 +68,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
         public string DriverInfo => "Adaptive Agent for PHD2 v1.15.0.0 — sky conditions monitor (virtual safety device)";
-        public string DriverVersion => "1.15.0.0";
+        public string DriverVersion => "1.15.1.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -472,9 +472,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                         ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianFlipDone")));
                         break;
                     case MeridianEvent.ClosedTimeout:
-                        Logger.Warning($"Meridian protection (§72): window expired after "
-                                       + $"{MeridianProtectionEngine.WindowMaxMinutes:0} min without a flip "
-                                       + "(trigger missing/disabled?) — LOCKOUT, manual tracking restart needed when sky clears");
+                        Logger.Warning($"Meridian protection (§72): window expired — no flip within "
+                                       + $"{MeridianProtectionEngine.WindowMaxMinutes:0} min (trigger missing/disabled?) "
+                                       + $"or a NINA flip still running after {MeridianProtectionEngine.FlipMaxMinutes:0} min "
+                                       + "— LOCKOUT, check the mount (tracking may need a manual restart) when the sky clears");
                         ShowToast(() => Notification.ShowWarning(Loc.T("Toast_MeridianTimeout")));
                         break;
                     case MeridianEvent.ClosedConditionsLost:

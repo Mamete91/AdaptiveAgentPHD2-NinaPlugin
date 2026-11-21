@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.15.0.0")]
-[assembly: AssemblyFileVersion("1.15.0.0")]
+[assembly: AssemblyVersion("1.15.1.0")]
+[assembly: AssemblyFileVersion("1.15.1.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -44,15 +44,17 @@ using System.Runtime.InteropServices;
     "SKY CONDITIONS MONITOR - a virtual device that measures observing conditions continuously " +
     "and reports them through the N.I.N.A. safety-device interface (it appears under the Safety " +
     "Monitor equipment category, which is the N.I.N.A. name for the slot, not this monitor's " +
-    "role). The guide channel is the judge of the sky, in both directions: the guide star sits in " +
+    "role). The guide channel is the judge of the sky, both to pause the sequence and to let it " +
+    "resume: the guide star sits in " +
     "the same telescope as the imaging camera (off-axis guider) and is sampled every few seconds, " +
     "also while the sequence is paused (requires Adaptive Agent 3.1 or later; with an older Agent " +
     "clouds are not judged and a warning says so). It reports unsafe on: sustained " +
     "STAR_LOST; a guide-star signal below half of its clear-sky reference (about 3.5 minutes with the " +
     "factory settings - clouds, or a guide-camera fault); a guide channel gone silent while guiding " +
     "was expected; loss of the Agent during an active session. It returns safe when the guide star " +
-    "stays above 80% of its reference for a minute and is tracked steadily - no verification exposure " +
-    "needed. During calibration, the Guiding Assistant and autofocus (when N.I.N.A. stops guiding for " +
+    "stays above 80% of its reference for a minute and is tracked steadily (about 2 minutes with the " +
+    "factory settings); after a lost star, a lost Agent or a silent guide channel it waits for the " +
+    "same clear-sky confirmation. During calibration, the Guiding Assistant and autofocus (when N.I.N.A. stops guiding for " +
     "it) the sky verdict is suspended; a lost star still counts. The imaging camera keeps measuring " +
     "the sky on every frame, for information only. The monitor only ever reports - the N.I.N.A. Sequence Engine always " +
     "stays in charge of the sequence." +
@@ -71,7 +73,7 @@ using System.Runtime.InteropServices;
     "and ends on its own when the monitor returns safe. The unsafe branch must not stop guiding or park." +
     "\n\n" +
     "AGENT LIFECYCLE - on by default: auto-launches the Agent when N.I.N.A. starts and shuts it " +
-    "down gracefully on close, restoring the PHD2 baseline." +
+    "down gracefully on close, putting PHD2's starting parameters back." +
     "\n\n" +
     "Plugin UI in English or Italiano (follows N.I.N.A. by default, switchable live). All " +
     "communication is local; no external services.")]
