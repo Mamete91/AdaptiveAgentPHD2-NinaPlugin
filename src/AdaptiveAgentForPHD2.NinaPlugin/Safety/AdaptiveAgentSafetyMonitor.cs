@@ -42,6 +42,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private bool _connected;
         private bool _subscribed;
 
+        // §72-bis — il flip di NINA in corso e quanti ne ha conclusi (dagli avvisi del
+        // mediator della montatura; scritti dal thread del flip, letti dal tick N6).
+        private volatile bool _ninaFlipInProgress;
+        private int _ninaFlipsCompleted;
+        private NINA.Equipment.Interfaces.Mediator.ITelescopeMediator? _flipSource;
+
         public AdaptiveAgentSafetyMonitor(PluginSettings settings, AgentHealthChecker health, SafetyDecisionEngine engine)
         {
             _settings = settings;
@@ -61,8 +67,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.14.0.0 — sky conditions monitor (virtual safety device)";
-        public string DriverVersion => "1.14.0.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.14.3.0 — sky conditions monitor (virtual safety device)";
+        public string DriverVersion => "1.14.3.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -168,6 +174,22 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _subscribed = true;
             _health.StatusChanged += OnHealthChanged;
             _health.StatusUpdated += OnStatusUpdated;
+            _ninaFlipInProgress = false;
+            try
+            {
+                _flipSource = AgentServices.Instance.TelescopeMediator;
+                if (_flipSource != null)
+                {
+                    _flipSource.BeforeMeridianFlip += OnBeforeMeridianFlip;
+                    _flipSource.AfterMeridianFlip += OnAfterMeridianFlip;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Fail-inert: senza avvisi vale la regola del cambio di pilastro.
+                Logger.Warning($"Meridian protection (§72-bis): flip notifications unavailable ({ex.Message})");
+                _flipSource = null;
+            }
         }
 
         private void Unsubscribe()
@@ -176,6 +198,31 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _subscribed = false;
             _health.StatusChanged -= OnHealthChanged;
             _health.StatusUpdated -= OnStatusUpdated;
+            if (_flipSource != null)
+            {
+                _flipSource.BeforeMeridianFlip -= OnBeforeMeridianFlip;
+                _flipSource.AfterMeridianFlip -= OnAfterMeridianFlip;
+                _flipSource = null;
+            }
+            _ninaFlipInProgress = false;
+        }
+
+        /// <summary>§72-bis — NINA inizia il flip (prima di fermare la guida).</summary>
+        private Task OnBeforeMeridianFlip(object sender, NINA.Equipment.Interfaces.Mediator.BeforeMeridianFlipEventArgs e)
+        {
+            _ninaFlipInProgress = true;
+            Logger.Info("Meridian protection (§72-bis): NINA meridian flip started");
+            return Task.CompletedTask;
+        }
+
+        /// <summary>§72-bis — NINA ha concluso il flip (anche annullato): ricentraggio,
+        /// ripresa della guida e assestamento sono alle spalle.</summary>
+        private Task OnAfterMeridianFlip(object sender, NINA.Equipment.Interfaces.Mediator.AfterMeridianFlipEventArgs e)
+        {
+            _ninaFlipInProgress = false;
+            Interlocked.Increment(ref _ninaFlipsCompleted);
+            Logger.Info($"Meridian protection (§72-bis): NINA meridian flip finished (success={e.Success})");
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -411,7 +458,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 var (evt, resumeTracking) = _meridian.Tick(
                     _settings.MeridianProtectionEnabled, _internalSafe, mountConnected,
                     tracking, pierIsWest, minutesToDeadline, _settings.MeridianLeadMinutes,
-                    Environment.TickCount64 / 1000.0);
+                    Environment.TickCount64 / 1000.0,
+                    _ninaFlipInProgress, Volatile.Read(ref _ninaFlipsCompleted));
 
                 if (resumeTracking && tm != null)
                 {
@@ -429,9 +477,16 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                                     + "— reporting SAFE for the mechanical flip ONLY; internal latches untouched");
                         ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianOpen")));
                         break;
+                    case MeridianEvent.OpenedDuringFlip:
+                        Logger.Info("Meridian protection (§72-bis): window OPEN for a NINA flip already in "
+                                    + "progress — reporting SAFE until NINA finishes it (recenter and guiding "
+                                    + "included); internal latches untouched");
+                        ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianOpen")));
+                        break;
                     case MeridianEvent.ClosedFlipDone:
-                        Logger.Info("Meridian protection (§72): pier side changed — flip done, window CLOSED, "
-                                    + "honest unsafe restored (recovery loop re-parks the sequence)");
+                        Logger.Info("Meridian protection (§72): flip completed (NINA flip finished, or pier side "
+                                    + "changed without a NINA flip) — window CLOSED, honest state restored "
+                                    + "(recovery loop re-parks the sequence if still unsafe)");
                         ShowToast(() => Notification.ShowInformation(Loc.T("Toast_MeridianFlipDone")));
                         break;
                     case MeridianEvent.ClosedTimeout:

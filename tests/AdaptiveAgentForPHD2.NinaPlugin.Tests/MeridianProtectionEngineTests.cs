@@ -138,5 +138,78 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             e.Reset();
             Assert.IsFalse(e.WindowOpen);
         }
-    }
+    
+        // ---- §72-bis: la notte 20-21/11 ----
+
+        private static (MeridianEvent, bool) F(MeridianProtectionEngine e, double now,
+            bool flip, int done, bool internalSafe = false, bool tracking = true,
+            bool? pierWest = true, double? toDeadline = 2.0, bool mount = true)
+            => e.Tick(true, internalSafe, mount, tracking, pierWest, toDeadline, Lead, now, flip, done);
+
+        [TestMethod]
+        public void Night_2011_PierChangeDuringNinaFlip_KeepsWindowOpenUntilFlipEnds()
+        {
+            var e = new MeridianProtectionEngine();
+            Assert.AreEqual(MeridianEvent.Opened, F(e, 0, flip: false, done: 0, toDeadline: 3.9).Item1);
+            // 00:33:27 NINA avvia il flip; 00:33:29 ferma il tracking per passare il meridiano
+            var (evt, resume) = F(e, 345, flip: true, done: 0, tracking: false, toDeadline: -1.7);
+            Assert.AreEqual(MeridianEvent.None, evt);
+            Assert.IsFalse(resume, "durante il flip il tracking lo gestisce NINA");
+            // 00:34:01 il pilastro cambia: prima chiudeva qui, ora resta aperta
+            Assert.AreEqual(MeridianEvent.None, F(e, 375, flip: true, done: 0, pierWest: false).Item1);
+            Assert.IsTrue(e.WindowOpen, "ricentraggio e guida ancora da fare");
+            Assert.AreEqual(MeridianEvent.None, F(e, 435, flip: true, done: 0, pierWest: null).Item1,
+                "pilastro ignoto durante lo slew: si aspetta NINA");
+            Assert.IsTrue(e.WindowOpen);
+            // NINA conclude il flip
+            Assert.AreEqual(MeridianEvent.ClosedFlipDone, F(e, 450, flip: false, done: 1, pierWest: false).Item1);
+            Assert.IsFalse(e.WindowOpen, "l'unsafe onesto torna a flip concluso");
+        }
+
+        [TestMethod]
+        public void UnsafeArrivingDuringNinaFlip_OpensWindow_WithoutTouchingTracking()
+        {
+            var e = new MeridianProtectionEngine();
+            Assert.AreEqual(MeridianEvent.None, F(e, 0, flip: true, done: 0, internalSafe: true).Item1);
+            var (evt, resume) = F(e, 15, flip: true, done: 0, tracking: false, toDeadline: 10.0);
+            Assert.AreEqual(MeridianEvent.OpenedDuringFlip, evt);
+            Assert.IsFalse(resume);
+            Assert.AreEqual(MeridianEvent.ClosedFlipDone, F(e, 120, flip: false, done: 1, pierWest: false).Item1);
+        }
+
+        [TestMethod]
+        public void FlipForcedAfterLockout_IsProtected()
+        {
+            var e = new MeridianProtectionEngine();
+            F(e, 0, flip: false, done: 0);
+            Assert.AreEqual(MeridianEvent.ClosedTimeout,
+                F(e, MeridianProtectionEngine.WindowMaxMinutes * 60, flip: false, done: 0, toDeadline: -15).Item1);
+            Assert.IsFalse(e.WindowOpen);
+            Assert.AreEqual(MeridianEvent.OpenedDuringFlip,
+                F(e, 1300, flip: true, done: 0, toDeadline: -18).Item1, "flip forzato dall'operatore");
+            Assert.IsTrue(e.WindowOpen);
+        }
+
+        [TestMethod]
+        public void HungNinaFlip_HasACeiling()
+        {
+            var e = new MeridianProtectionEngine();
+            F(e, 0, flip: false, done: 0);
+            F(e, 10, flip: true, done: 0);
+            Assert.AreEqual(MeridianEvent.None,
+                F(e, 10 + MeridianProtectionEngine.FlipMaxMinutes * 60 - 1, flip: true, done: 0).Item1);
+            Assert.AreEqual(MeridianEvent.ClosedTimeout,
+                F(e, 10 + MeridianProtectionEngine.FlipMaxMinutes * 60, flip: true, done: 0).Item1);
+            Assert.IsFalse(e.WindowOpen, "NINA bloccata: l'unsafe onesto deve tornare");
+        }
+
+        [TestMethod]
+        public void WithoutNinaNotifications_PierChangeStillCloses()
+        {
+            var e = new MeridianProtectionEngine();
+            F(e, 0, flip: false, done: 0);
+            Assert.AreEqual(MeridianEvent.ClosedFlipDone, F(e, 30, flip: false, done: 0, pierWest: false).Item1,
+                "flip a mano dalla montatura: regola di prima");
+        }
+}
 }
