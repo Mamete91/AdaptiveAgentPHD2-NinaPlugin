@@ -43,7 +43,11 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Sequencer
         "the sky, so this instruction takes no exposures: it keeps the judge alive. While unsafe it restarts " +
         "guiding if guiding has stopped, if the guide star has been lost for longer than the minimum interval, " +
         "or once per restart interval of continued unsafe (postponed while the guide is confirming a clear " +
-        "sky); it ends on its own when the monitor returns SAFE.")]
+        "sky); it ends on its own when the monitor returns SAFE.\n\n" +
+        "IT: passo di recupero per il Trigger On Unsafe ('Before Waiting For Safety'). Il cielo lo giudica la " +
+        "guida, quindi non scatta pose: tiene vivo il giudice. Durante l'unsafe fa ripartire la guida se si e' " +
+        "fermata, se la stella resta persa piu' dell'intervallo minimo, o una volta ogni intervallo di riavvio di " +
+        "unsafe (rimandato mentre la guida conferma il sereno); finisce da sola quando il monitor torna SAFE.")]
     [ExportMetadata("Icon", "HourglassSVG")]
     [ExportMetadata("Category", "Adaptive Agent for PHD2")]
     [Export(typeof(ISequenceItem))]

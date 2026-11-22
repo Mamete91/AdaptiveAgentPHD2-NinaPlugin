@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("Alessandro Curci")]
 [assembly: AssemblyProduct("Adaptive Agent for PHD2 — Dashboard")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Alessandro Curci")]
-[assembly: AssemblyVersion("1.15.1.0")]
-[assembly: AssemblyFileVersion("1.15.1.0")]
+[assembly: AssemblyVersion("1.16.0.0")]
+[assembly: AssemblyFileVersion("1.16.0.0")]
 [assembly: ComVisible(false)]
 
 // --- Manifest plugin NINA ---
@@ -70,7 +70,11 @@ using System.Runtime.InteropServices;
     "placed in Trigger On Unsafe it keeps the judge alive - it restarts guiding if guiding has " +
     "stopped, if the guide star has been lost for longer than the minimum interval, or once per " +
     "restart interval of continued unsafe (postponed while the guide is confirming a clear sky) - " +
-    "and ends on its own when the monitor returns safe. The unsafe branch must not stop guiding or park." +
+    "and ends on its own when the monitor returns safe. The unsafe branch must not stop guiding or park. " +
+    "The Recenter if needed (Adaptive Agent) instruction, placed in After Waiting For Safety, checks the " +
+    "framing with a single plate solve when the sky is clear again - only after a meridian flip ran while " +
+    "unsafe (under clouds the flip's own recenter can fail silently) or after the set minutes without " +
+    "guiding - and recenters only if the target is outside the N.I.N.A. centering tolerance." +
     "\n\n" +
     "AGENT LIFECYCLE - on by default: auto-launches the Agent when N.I.N.A. starts and shuts it " +
     "down gracefully on close, putting PHD2's starting parameters back." +

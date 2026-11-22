@@ -48,12 +48,17 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         private int _ninaFlipsCompleted;
         private NINA.Equipment.Interfaces.Mediator.ITelescopeMediator? _flipSource;
 
-        public AdaptiveAgentSafetyMonitor(PluginSettings settings, AgentHealthChecker health, SafetyDecisionEngine engine)
+        // §129 — minuti senza guida e flip durante l'unsafe, per "Recenter if needed".
+        private readonly Sequencer.RecenterTracker _recenter;
+
+        public AdaptiveAgentSafetyMonitor(PluginSettings settings, AgentHealthChecker health, SafetyDecisionEngine engine,
+                                          Sequencer.RecenterTracker? recenter = null)
         {
             _settings = settings;
             _health = health;
             _engine = engine;
             _publisher = new SafetyStatePublisher(settings);
+            _recenter = recenter ?? new Sequencer.RecenterTracker();
         }
 
         // --- Identita' del driver (vedi pre-flight: stesse convenzioni del SafetyMonitorSimulator di NINA) ---
@@ -67,8 +72,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         // ISafetyMonitor: NINA la renderizza come testo (TextBlock) — niente immagini,
         // ma \n e caratteri unicode di albero sono supportati.
         public string Description => Loc.T("Monitor_Description");
-        public string DriverInfo => "Adaptive Agent for PHD2 v1.15.0.0 — sky conditions monitor (virtual safety device)";
-        public string DriverVersion => "1.15.1.0";
+        public string DriverInfo => "Adaptive Agent for PHD2 v1.16.0.0 — sky conditions monitor (virtual safety device)";
+        public string DriverVersion => "1.16.0.0";
         public string Category => "N.I.N.A.";
         // GUID stabile, distinto dal GUID del plugin (6F2E9C19-...). Generato una volta sola e hard-coded.
         public string Id => "10A715AD-903C-499E-9CC7-CA8E66A49B7C";
@@ -98,6 +103,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             // 3-4/10, ora provata). Anche la finestra meridiano riparte pulita.
             _internalSafe = true;
             _meridian.Reset();
+            _recenter.Reset(monitorConnected: false);
 
             // Connected richiede che l'Agente risponda sia a /about sia a /status entro il timeout (3s).
             var health = await _health.CheckOnceAsync().ConfigureAwait(false);
@@ -110,6 +116,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             }
 
             IsSafe = true; // stato iniziale neutro
+            _recenter.Reset(monitorConnected: true);
             Subscribe();
             _health.StatusPollingEnabled = true;
             Connected = true;
@@ -128,6 +135,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _engine.Reset();
             _meridian.Reset();
             _internalSafe = true;   // §126-bis — nessuno stato vecchio alla dashboard
+            _recenter.Reset(monitorConnected: false);
             Connected = false;
             // §73 — la dashboard deve saperlo: monitor scollegato = stato SCONOSCIUTO,
             // mai un verde residuo lasciato sullo schermo (stessa disciplina §55).
@@ -212,6 +220,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
         {
             _ninaFlipInProgress = true;
             Logger.Info("Meridian protection (§72-bis): NINA meridian flip started");
+            try { _recenter.OnFlipStarted(_internalSafe, e.Target); } catch { /* fail-inert */ }
             return Task.CompletedTask;
         }
 
@@ -222,6 +231,9 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
             _ninaFlipInProgress = false;
             Interlocked.Increment(ref _ninaFlipsCompleted);
             Logger.Info($"Meridian protection (§72-bis): NINA meridian flip finished (success={e.Success})");
+            // §129 — un flip che inizia o finisce con il monitor internamente UNSAFE e' passato
+            // sotto le nubi: il suo ricentraggio va verificato al ritorno del sereno.
+            try { _recenter.OnFlipFinished(_internalSafe); } catch { /* fail-inert */ }
             return Task.CompletedTask;
         }
 
@@ -317,6 +329,21 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Safety
                 case SafetyDecision.NoChange:
                 default:
                     break;
+            }
+
+            // §129 — minuti senza guida durante l'unsafe (stato INTERNO: la finestra
+            // meridiano non interrompe il conteggio). PRIMA di pubblicare IsSafe: quando NINA
+            // vede SAFE e lancia After Waiting For Safety, la memoria deve gia' sapere che il
+            // sereno e' vero. Fail-inert.
+            try
+            {
+                _recenter.OnTick(_internalSafe, Sequencer.RecenterTracker.IsUnguided(snap),
+                                 Environment.TickCount64 / 1000.0,
+                                 3.0 * Math.Max(1, _settings.HealthCheckIntervalSeconds));
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"Recenter tracker tick skipped ({ex.Message})");
             }
 
             // §72 — protezione meridiano: il valore RIPORTATO puo' divergere da quello

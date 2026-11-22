@@ -47,20 +47,80 @@
         <!-- §128 — solo la sonda di guida: via "Cadenza automatica" e "Posa di ripiego"
              (pose-sonda della camera di ripresa). Il campo del riavvio era grigio con la
              cadenza automatica accesa (cioe' sempre, di fabbrica): ora e' modificabile. -->
+        <!-- §129 — tooltip con TextBlock a capo (MaxWidth): i testi sono lunghi. La "ⓘ" in
+             fondo spiega a cosa serve l'istruzione e dove va messa, nella lingua del plugin. -->
         <StackPanel Orientation="Horizontal">
             <TextBlock VerticalAlignment="Center"
-                       Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}"
-                       ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}" />
+                       Text="{Binding [Probe_Timeout], Source={x:Static loc:Loc.Instance}}">
+                <TextBlock.ToolTip>
+                    <TextBlock Text="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBlock.ToolTip>
+            </TextBlock>
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
-                     ToolTip="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}"
-                     Text="{Binding TimeoutMinutes}" />
+                     Text="{Binding TimeoutMinutes}">
+                <TextBox.ToolTip>
+                    <TextBlock Text="{Binding [Probe_Timeout_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBox.ToolTip>
+            </TextBox>
 
             <TextBlock VerticalAlignment="Center" Margin="15,0,0,0"
-                       Text="{Binding [Probe_MinInterval], Source={x:Static loc:Loc.Instance}}"
-                       ToolTip="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}" />
+                       Text="{Binding [Probe_MinInterval], Source={x:Static loc:Loc.Instance}}">
+                <TextBlock.ToolTip>
+                    <TextBlock Text="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBlock.ToolTip>
+            </TextBlock>
             <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
-                     ToolTip="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}"
-                     Text="{Binding MinIntervalMinutes}" />
+                     Text="{Binding MinIntervalMinutes}">
+                <TextBox.ToolTip>
+                    <TextBlock Text="{Binding [Probe_MinInterval_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBox.ToolTip>
+            </TextBox>
+
+            <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" FontSize="14" Opacity="0.8" Text="ⓘ">
+                <TextBlock.ToolTip>
+                    <TextBlock Text="{Binding [Probe_Info_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="460" />
+                </TextBlock.ToolTip>
+            </TextBlock>
+        </StackPanel>
+        </view:SequenceBlockView.SequenceItemContent>
+      </view:SequenceBlockView>
+    </DataTemplate>
+
+    <!--
+        §129 — editor inline di "Recenter if needed (Adaptive Agent)": un solo campo (minuti
+        senza guida) e la "ⓘ" con la spiegazione. Stessa convenzione §64-ter (radice
+        SequenceBlockView, editor in SequenceItemContent).
+    -->
+    <DataTemplate DataType="{x:Type sequencer:RecenterIfNeeded}">
+      <view:SequenceBlockView>
+        <view:SequenceBlockView.SequenceItemContent>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock VerticalAlignment="Center"
+                       Text="{Binding [Recenter_Minutes], Source={x:Static loc:Loc.Instance}}">
+                <TextBlock.ToolTip>
+                    <TextBlock Text="{Binding [Recenter_Minutes_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBlock.ToolTip>
+            </TextBlock>
+            <TextBox MinWidth="40" Margin="5,0,0,0" VerticalAlignment="Center"
+                     Text="{Binding UnguidedMinutes}">
+                <TextBox.ToolTip>
+                    <TextBlock Text="{Binding [Recenter_Minutes_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="420" />
+                </TextBox.ToolTip>
+            </TextBox>
+
+            <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" FontSize="14" Opacity="0.8" Text="ⓘ">
+                <TextBlock.ToolTip>
+                    <TextBlock Text="{Binding [Recenter_Info_Tip], Source={x:Static loc:Loc.Instance}}"
+                               TextWrapping="Wrap" MaxWidth="460" />
+                </TextBlock.ToolTip>
+            </TextBlock>
         </StackPanel>
         </view:SequenceBlockView.SequenceItemContent>
       </view:SequenceBlockView>

@@ -77,6 +77,8 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             {
                 "Settings_Tip_SkyDegradePolls", "Settings_Tip_ClearPolls",
                 "Settings_Tip_AgentLostPolls", "Probe_Timeout_Tip", "Probe_MinInterval_Tip",
+                // §129 — spiegazione delle due istruzioni e campo di Recenter if needed.
+                "Probe_Info_Tip", "Recenter_Info_Tip", "Recenter_Minutes_Tip",
             };
             foreach (var key in tips)
             {
@@ -101,6 +103,12 @@ namespace AdaptiveAgentForPHD2.NinaPlugin.Tests
             StringAssert.Contains(Loc.T("Dash_AgentOnlineV"), "{0}");
             StringAssert.Contains(Loc.T("Toast_GuideProbeFailed"), "{0}");
             StringAssert.Contains(Loc.T("Launch_Error"), "{0}");
+            foreach (var lang in new[] { "en", "it" })
+            {
+                Loc.Instance.SetLanguage(lang);
+                StringAssert.Contains(Loc.T("Toast_Recentered"), "{0}");
+                StringAssert.Contains(Loc.T("Toast_RecenterFailed"), "{0}");
+            }
         }
     }
 }

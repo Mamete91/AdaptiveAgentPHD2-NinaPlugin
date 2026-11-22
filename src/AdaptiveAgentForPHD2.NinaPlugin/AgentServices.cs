@@ -42,6 +42,10 @@ namespace AdaptiveAgentForPHD2.NinaPlugin
         public Lazy<SafetyDecisionEngine> SafetyEngine { get; }
             = new(() => new SafetyDecisionEngine());
 
+        // §129 — memoria condivisa fra il monitor (che la alimenta) e l'istruzione
+        // "Recenter if needed" (che la legge): minuti senza guida e flip durante l'unsafe.
+        public Sequencer.RecenterTracker RecenterTracker { get; } = new();
+
         // v1.2: istanza singleton del Safety Monitor. Creata pigramente al primo scan equipment
         // (via AdaptiveAgentSafetyMonitorProvider). Singleton => sopravvive ai rescan.
         private readonly Lazy<AdaptiveAgentSafetyMonitor> _safetyMonitor;
@@ -53,7 +57,7 @@ namespace AdaptiveAgentForPHD2.NinaPlugin
             Launcher = new AgentLauncher();
             HealthChecker = new AgentHealthChecker(Settings);
             _safetyMonitor = new(() =>
-                new AdaptiveAgentSafetyMonitor(Settings, HealthChecker, SafetyEngine.Value));
+                new AdaptiveAgentSafetyMonitor(Settings, HealthChecker, SafetyEngine.Value, RecenterTracker));
         }
     }
 }
